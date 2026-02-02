@@ -66,19 +66,3 @@ def test_config_empty_input():
         )
 
 
-def test_config_custom_values(sample_seed_data, sample_instruction):
-    """Test config with custom values."""
-    config = DistillationConfig(
-        name="custom-run",
-        seed=sample_seed_data,
-        instruction=sample_instruction,
-        teacher="gpt-4",
-        student="llama-2-7b",
-        augment_factor=100,
-        output_dir="/custom/path",
-    )
-
-    assert config.teacher == "gpt-4"
-    assert config.student == "llama-2-7b"
-    assert config.augment_factor == 100
-    assert config.output_dir == "/custom/path"

@@ -16,7 +16,7 @@
 
 If you want a small, local model that does one thing well from a handful of examples, this is it.
 
-[Quick Start](docs/QUICK_START.md) · [Workflow](docs/WORKFLOW.md) · [Model Setup](docs/MODEL_SETUP.md) · [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
+[Quick Start](docs/QUICK_START.md) · [Workflow](docs/WORKFLOW.md) · [Model Setup](docs/MODEL_SETUP.md) · [Contributing](docs/CONTRIBUTING.md)
 
 Preferred setup: `uv pip install -e .` (or `pip install -e .`). Runs on **macOS with Apple Silicon (M1/M2/M3+)**, 16GB+ RAM. Needs an API key for the teacher: [Anthropic](https://console.anthropic.com) for Claude; other teachers (OpenAI, Google, Ollama) work via LiteLLM. New install? Start here: [Getting started](docs/QUICK_START.md)
 
@@ -235,7 +235,9 @@ MIT
 
 ## Contributing
 
-Contributions are welcome. See CONTRIBUTING.md (coming soon).
+Contributions are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines on how to get started, development workflow, and our standards. This project is governed by our [Code of Conduct](docs/CODE_OF_CONDUCT.md).
+
+**Security concerns?** Please see [SECURITY.md](docs/SECURITY.md) for our security policy and responsible disclosure process.
 
 ---
 
