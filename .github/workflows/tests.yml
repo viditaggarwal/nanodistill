@@ -6,20 +6,21 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+# Note: NanoDistill is platform-specific (macOS + Apple Silicon).
+# Testing on multiple Python versions on Ubuntu is not representative
+# of actual usage, so we test on a single stable version (3.11).
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python 3.11
       uses: actions/setup-python@v4
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: "3.11"
 
     - name: Install dependencies
       run: |
