@@ -1,0 +1,105 @@
+None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+Stock sentiment with Pydantic output
+============================================================
+
+🔬 NanoDistill: Distillation Pipeline
+Run: stock-sentiment-v1
+Teacher: claude-haiku-4-5
+Student: mlx-community/Qwen2.5-7B-Instruct-4bit
+Seed examples: 10
+Target dataset size: 50
+
+⚡ Found existing amplified data at 
+outputs/stock-sentiment-v1/traces_amplified.jsonl
+   Skipping API calls and going directly to fine-tuning...
+
+📂 Loading existing amplified data...
+✓ Loaded 50 training examples
+
+Loading model: mlx-community/Qwen2.5-7B-Instruct-4bit
+Fetching 9 files:   0%|          | 0/9 [00:00<?, ?it/s]Fetching 9 files: 100%|██████████| 9/9 [00:00<00:00, 14260.95it/s]
+Loading pretrained model
+Fetching 9 files:   0%|          | 0/9 [00:00<?, ?it/s]Fetching 9 files: 100%|██████████| 9/9 [00:00<00:00, 33825.03it/s]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/viditaggarwal/Documents/github/nanodistill/.venv/lib/python3.11/site-packages/mlx_lm/__main__.py", line 30, in <module>
+    submodule.main()
+  File "/Users/viditaggarwal/Documents/github/nanodistill/.venv/lib/python3.11/site-packages/mlx_lm/lora.py", line 362, in main
+    run(types.SimpleNamespace(**args))
+  File "/Users/viditaggarwal/Documents/github/nanodistill/.venv/lib/python3.11/site-packages/mlx_lm/lora.py", line 325, in run
+    train_set, valid_set, test_set = load_dataset(args, tokenizer)
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/viditaggarwal/Documents/github/nanodistill/.venv/lib/python3.11/site-packages/mlx_lm/tuner/datasets.py", line 315, in load_dataset
+    raise ValueError(
+ValueError: Validation set not found or empty. Must provide validation set for fine-tuning.
+Loading datasets
+Model loaded successfully
+LoRA configuration:
+  Rank: 8
+  Target layers: Last 4 layers
+  (Initialization will happen during training with MLX-LM tuner)
+
+
+============================================================
+Training Configuration
+============================================================
+  Model: mlx-community/Qwen2.5-7B-Instruct-4bit
+  Training examples: 50
+  Epochs: 2
+  Batch size: 2
+  Learning rate: 0.0002
+  LoRA rank: 8
+  LoRA layers: 4
+  Total iterations: 50
+  Data directory: outputs/stock-sentiment-v1/data
+  Adapter path: outputs/stock-sentiment-v1/adapters
+  Steps per report: 2
+
+============================================================
+Starting Fine-Tuning with Gradient-Based LoRA Training
+============================================================
+
+
+❌ Training failed with exit code 1
+⠧ 🔥 Fine-tuning student model...
+
+❌ Distillation Error
+Training failed: MLX-LM training failed: Command '['python', '-m', 'mlx_lm', 
+'lora', '--model', 'mlx-community/Qwen2.5-7B-Instruct-4bit', '--train', 
+'--data', 'outputs/stock-sentiment-v1/data', '--iters', '50', '--batch-size', 
+'2', '--learning-rate', '0.0002', '--num-layers', '4', '--adapter-path', 
+'outputs/stock-sentiment-v1/adapters', '--steps-per-report', '2', 
+'--save-every', '50']' returned non-zero exit status 1.
+Traceback (most recent call last):
+  File "/Users/viditaggarwal/Documents/github/nanodistill/src/nanodistill/distiller/trainer.py", line 231, in _train_loop
+    result = subprocess.run(cmd, check=True, capture_output=False)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/viditaggarwal/.local/share/uv/python/cpython-3.11.12-macos-aarch64-none/lib/python3.11/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['python', '-m', 'mlx_lm', 'lora', '--model', 'mlx-community/Qwen2.5-7B-Instruct-4bit', '--train', '--data', 'outputs/stock-sentiment-v1/data', '--iters', '50', '--batch-size', '2', '--learning-rate', '0.0002', '--num-layers', '4', '--adapter-path', 'outputs/stock-sentiment-v1/adapters', '--steps-per-report', '2', '--save-every', '50']' returned non-zero exit status 1.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/viditaggarwal/Documents/github/nanodistill/src/nanodistill/distiller/trainer.py", line 91, in train
+    self._train_loop(train_data, epochs, lr)
+  File "/Users/viditaggarwal/Documents/github/nanodistill/src/nanodistill/distiller/trainer.py", line 243, in _train_loop
+    raise TrainingError(f"MLX-LM training failed: {str(e)}") from e
+nanodistill.utils.errors.TrainingError: MLX-LM training failed: Command '['python', '-m', 'mlx_lm', 'lora', '--model', 'mlx-community/Qwen2.5-7B-Instruct-4bit', '--train', '--data', 'outputs/stock-sentiment-v1/data', '--iters', '50', '--batch-size', '2', '--learning-rate', '0.0002', '--num-layers', '4', '--adapter-path', 'outputs/stock-sentiment-v1/adapters', '--steps-per-report', '2', '--save-every', '50']' returned non-zero exit status 1.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/viditaggarwal/Documents/github/nanodistill/examples/stock_sentiment_pydantic.py", line 337, in <module>
+    result = run_distillation()
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/viditaggarwal/Documents/github/nanodistill/examples/stock_sentiment_pydantic.py", line 307, in run_distillation
+    return distill(
+           ^^^^^^^^
+  File "/Users/viditaggarwal/Documents/github/nanodistill/src/nanodistill/core.py", line 198, in distill
+    model_path = distiller.train(training_dataset)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/viditaggarwal/Documents/github/nanodistill/src/nanodistill/distiller/trainer.py", line 102, in train
+    raise TrainingError(f"Training failed: {str(e)}") from e
+nanodistill.utils.errors.TrainingError: Training failed: MLX-LM training failed: Command '['python', '-m', 'mlx_lm', 'lora', '--model', 'mlx-community/Qwen2.5-7B-Instruct-4bit', '--train', '--data', 'outputs/stock-sentiment-v1/data', '--iters', '50', '--batch-size', '2', '--learning-rate', '0.0002', '--num-layers', '4', '--adapter-path', 'outputs/stock-sentiment-v1/adapters', '--steps-per-report', '2', '--save-every', '50']' returned non-zero exit status 1.

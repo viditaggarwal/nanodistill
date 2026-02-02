@@ -1,0 +1,76 @@
+None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+Stock sentiment with Pydantic output
+============================================================
+
+🔬 NanoDistill: Distillation Pipeline
+Run: stock-sentiment-v1
+Teacher: claude-haiku-4-5
+Student: mlx-community/Qwen2.5-7B-Instruct-4bit
+Seed examples: 10
+Target dataset size: 50
+
+⚡ Found existing amplified data at 
+outputs/stock-sentiment-v1/traces_amplified.jsonl
+   Skipping API calls and going directly to fine-tuning...
+
+📂 Loading existing amplified data...
+✓ Loaded 50 training examples
+
+Loading model: mlx-community/Qwen2.5-7B-Instruct-4bit
+Fetching 9 files:   0%|          | 0/9 [00:00<?, ?it/s]Fetching 9 files: 100%|██████████| 9/9 [00:00<00:00, 36401.87it/s]
+Model loaded successfully
+LoRA configuration:
+  Rank: 8
+  Target layers: Last 4 layers
+  (Initialization will happen during training with MLX-LM tuner)
+
+
+============================================================
+Training Configuration
+============================================================
+  Model: mlx-community/Qwen2.5-7B-Instruct-4bit
+  Training examples: 50
+  Epochs: 2
+  Batch size: 2
+  Learning rate: 0.0002
+  LoRA rank: 8
+  LoRA layers: 4
+  Total iterations: 50
+  Steps per eval: 25
+  Steps per report: 2
+  Save checkpoints: Every 25 steps
+
+============================================================
+Starting Fine-Tuning with Gradient-Based LoRA Training
+============================================================
+
+
+❌ Training failed: TrainingArgs.__init__() got an unexpected keyword argument 'model'
+⠼ 🔥 Fine-tuning student model...
+
+❌ Distillation Error
+Training failed: TrainingArgs.__init__() got an unexpected keyword argument 
+'model'
+Traceback (most recent call last):
+  File "/Users/viditaggarwal/Documents/github/nanodistill/src/nanodistill/distiller/trainer.py", line 91, in train
+    self._train_loop(train_data, epochs, lr)
+  File "/Users/viditaggarwal/Documents/github/nanodistill/src/nanodistill/distiller/trainer.py", line 218, in _train_loop
+    args = TrainingArgs(
+           ^^^^^^^^^^^^^
+TypeError: TrainingArgs.__init__() got an unexpected keyword argument 'model'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/viditaggarwal/Documents/github/nanodistill/examples/stock_sentiment_pydantic.py", line 337, in <module>
+    result = run_distillation()
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/viditaggarwal/Documents/github/nanodistill/examples/stock_sentiment_pydantic.py", line 307, in run_distillation
+    return distill(
+           ^^^^^^^^
+  File "/Users/viditaggarwal/Documents/github/nanodistill/src/nanodistill/core.py", line 198, in distill
+    model_path = distiller.train(training_dataset)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/viditaggarwal/Documents/github/nanodistill/src/nanodistill/distiller/trainer.py", line 102, in train
+    raise TrainingError(f"Training failed: {str(e)}") from e
+nanodistill.utils.errors.TrainingError: Training failed: TrainingArgs.__init__() got an unexpected keyword argument 'model'

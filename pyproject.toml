@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nanodistill"
+version = "0.1.0"
+description = "Convert 10 examples + instruction into a locally runnable, reasoning-capable small language model"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "NanoDistill Contributors" }]
+keywords = ["distillation", "llm", "small-language-model", "knowledge-distillation", "apple-silicon"]
+requires-python = ">=3.9"
+
+dependencies = [
+    "litellm>=1.50.0",                    # Teacher API (Claude support)
+    "instructor>=1.3.0",                  # Structured output
+    "pydantic>=2.0.0",                    # Data validation
+    "mlx>=0.0.8",                         # MLX framework (Apple Silicon native)
+    "mlx-lm>=0.0.2",                      # MLX LLM utilities
+    "datasets>=2.18.0",                   # HuggingFace datasets
+    "rich>=13.0.0",                       # Beautiful terminal output
+    "typer>=0.9.0",                       # CLI framework
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+]
+
+post-mvp = [
+    # Post-MVP: For cross-platform support
+    "unsloth[colab-new]>=2024.1",  # Memory-efficient training (Linux/Windows)
+    "transformers>=4.40.0",         # Base LLM library
+    "torch>=2.2.0",                 # PyTorch with MPS backend
+]
+
+[tool.setuptools]
+packages = ["nanodistill"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "-v --cov=src/nanodistill --cov-report=term-missing"
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+select = ["E", "F", "W", "I"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
