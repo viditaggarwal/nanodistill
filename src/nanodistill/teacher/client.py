@@ -3,7 +3,7 @@
 import json
 import logging
 import re
-from typing import Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Dict, List, Optional, Type
 
 import instructor
 from litellm import completion
@@ -21,6 +21,9 @@ from .prompts import (
 )
 from .schemas import TaskPolicy, TeacherResponse, ThinkingTrace
 
+if TYPE_CHECKING:
+    from ..config import DistillationConfig
+
 
 class TeacherClient:
     """Client for interacting with teacher models via LiteLLM.
@@ -31,11 +34,13 @@ class TeacherClient:
     Attributes:
         model: Teacher model name (e.g., "claude-sonnet-4-5")
         api_base: Optional custom API base URL
+        config: DistillationConfig for accessing parameters like temperature
     """
 
     def __init__(
         self,
         model: str,
+        config: Optional["DistillationConfig"] = None,
         api_base: Optional[str] = None,
         max_retries: int = 3,
     ):
@@ -43,6 +48,7 @@ class TeacherClient:
 
         Args:
             model: Teacher model name (LiteLLM-compatible)
+            config: Optional DistillationConfig for parameter access
             api_base: Optional custom API base URL
             max_retries: Number of retries on API failures
 
@@ -53,6 +59,7 @@ class TeacherClient:
         validate_teacher_api_key(model)
 
         self.model = model
+        self.config = config
         self.api_base = api_base
         self.max_retries = max_retries
 
@@ -248,6 +255,11 @@ class TeacherClient:
             policy, num_examples, instruction, seed_count
         )
 
+        # Get LiteLLM kwargs from config (temperature + user-provided params)
+        litellm_kwargs = {}
+        if self.config:
+            litellm_kwargs = self.config.get_litellm_synthesis_kwargs()
+
         # For synthetic generation, we use raw text output and parse it
         # (More flexible than structured output for list generation)
         response = completion(
@@ -259,9 +271,9 @@ class TeacherClient:
                 },
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.7,  # Some diversity
             max_retries=self.max_retries,
             api_base=self.api_base,
+            **litellm_kwargs,  # Pass temperature and any other LiteLLM params
         )
 
         # Parse response text to extract examples
@@ -305,6 +317,11 @@ class TeacherClient:
             policy, num_examples, instruction, seed_count
         )
 
+        # Get LiteLLM kwargs from config (temperature + user-provided params)
+        litellm_kwargs = {}
+        if self.config:
+            litellm_kwargs = self.config.get_litellm_synthesis_kwargs()
+
         try:
             # Use instructor for structured output
             response = self.client.chat.completions.create(
@@ -317,9 +334,9 @@ class TeacherClient:
                     },
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.7,
                 max_retries=self.max_retries,
                 api_base=self.api_base,
+                **litellm_kwargs,  # Pass temperature and any other LiteLLM params
             )
 
             # Handle both single instance and list responses

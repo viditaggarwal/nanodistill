@@ -87,8 +87,8 @@ class MLXTrainer:
             self._load_model()
             train_data = self._prepare_dataset(dataset)
 
-            epochs = getattr(self.config, "num_train_epochs", 2)
-            lr = getattr(self.config, "learning_rate", 2e-4)
+            epochs = self.config.num_train_epochs
+            lr = self.config.learning_rate
 
             self._train_loop(train_data, epochs, lr)
 
@@ -120,8 +120,8 @@ class MLXTrainer:
 
     def _setup_lora(self) -> None:
         """LoRA setup - handled by MLX-LM tuner during training."""
-        lora_rank = getattr(self.config, "lora_rank", 8)
-        lora_layers = getattr(self.config, "lora_layers", 4)
+        lora_rank = self.config.lora_rank
+        lora_layers = self.config.lora_layers
 
         print(f"LoRA configuration:")
         print(f"  Rank: {lora_rank}")
@@ -138,7 +138,6 @@ class MLXTrainer:
             List of tokenized training examples
         """
         formatted_data = []
-        max_seq_length = getattr(self.config, "max_seq_length", 512)
 
         for example in dataset:
             text = f"""Input: {example['input']}
@@ -148,8 +147,6 @@ Thinking: {example['thinking']}
 Output: {example['output']}"""
 
             tokens = self.tokenizer.encode(text)
-            if len(tokens) > max_seq_length:
-                tokens = tokens[:max_seq_length]
 
             formatted_data.append({
                 "text": text,
@@ -175,16 +172,20 @@ Output: {example['output']}"""
         import psutil
 
         def check_system_capacity() -> bool:
-            """Check if system is below 80% capacity and 12GB memory hard limit."""
+            """Check if system is below configured capacity threshold and memory hard limit."""
             try:
                 # Get memory info
                 mem_info = psutil.virtual_memory()
                 memory_used_gb = mem_info.used / (1024 ** 3)
                 memory_percent = mem_info.percent
 
-                # Hard cap at 12GB
-                if memory_used_gb > 12:
-                    print(f"\n🛑 MEMORY HARD CAP HIT: {memory_used_gb:.2f}GB > 12GB limit!")
+                # Get configured limits
+                memory_hard_limit_gb = self.config.memory_hard_limit_gb
+                cpu_capacity_percent = self.config.cpu_capacity_percent
+
+                # Hard cap at memory_hard_limit_gb
+                if memory_used_gb > memory_hard_limit_gb:
+                    print(f"\n🛑 MEMORY HARD CAP HIT: {memory_used_gb:.2f}GB > {memory_hard_limit_gb}GB limit!")
                     print(f"   Stopping training to prevent system crash...")
                     return False
 
@@ -193,9 +194,9 @@ Output: {example['output']}"""
 
                 capacity = max(memory_percent, cpu_percent)
 
-                if capacity > 80:
+                if capacity > (cpu_capacity_percent * 100):
                     print(f"\n⚠️  System capacity at {capacity:.1f}%")
-                    print(f"   Memory: {memory_used_gb:.2f}GB / 12GB max ({memory_percent:.1f}%)")
+                    print(f"   Memory: {memory_used_gb:.2f}GB / {memory_hard_limit_gb}GB max ({memory_percent:.1f}%)")
                     print(f"   CPU: {cpu_percent:.1f}%")
                     print(f"   Waiting for system to cool down...")
                     return False
@@ -205,18 +206,19 @@ Output: {example['output']}"""
                 # If monitoring fails, assume safe
                 return True
 
-        batch_size = getattr(self.config, "batch_size", 2)
-        output_dir = Path(getattr(self.config, "output_dir", "./outputs"))
-        model_name = getattr(self.config, "name", "distilled-model")
-        lora_layers = getattr(self.config, "lora_layers", 4)
-        lora_rank = getattr(self.config, "lora_rank", 8)
+        batch_size = self.config.batch_size
+        output_dir = Path(self.config.output_dir)
+        model_name = self.config.name
+        lora_layers = self.config.lora_layers
+        lora_rank = self.config.lora_rank
 
         # Save training data in MLX-LM format (expects data_dir/train.jsonl and valid.jsonl)
         data_dir = output_dir / model_name / "data"
         data_dir.mkdir(parents=True, exist_ok=True)
 
-        # Split data: 80% train, 20% validation
-        split_idx = int(len(train_data) * 0.8)
+        # Split data: train/validation ratio from config
+        val_split = self.config.val_split
+        split_idx = int(len(train_data) * (1 - val_split))
         train_examples = train_data[:split_idx]
         valid_examples = train_data[split_idx:]
 
@@ -275,6 +277,8 @@ Output: {example['output']}"""
             print(f"Limiting CPU threads to {limited_cpus}/{available_cpus} (80%)")
             print(f"Batch size: {batch_size} (reduce if OOM errors occur)\n")
 
+            max_seq_length = self.config.max_seq_length
+
             cmd = [
                 "python", "-m", "mlx_lm", "lora",
                 "--model", self.student_model,
@@ -287,6 +291,7 @@ Output: {example['output']}"""
                 "--adapter-path", str(adapter_path),
                 "--steps-per-report", str(steps_per_report),
                 "--save-every", str(iters),  # Save at end
+                "--max-seq-length", str(max_seq_length),
             ]
 
             # Monitor system while training
@@ -331,8 +336,8 @@ Output: {example['output']}"""
         Returns:
             Path to saved model directory
         """
-        output_dir = getattr(self.config, "output_dir", "./outputs")
-        model_name = getattr(self.config, "name", "distilled-model")
+        output_dir = self.config.output_dir
+        model_name = self.config.name
 
         model_path = Path(output_dir) / model_name
         adapter_path = model_path / "adapters"

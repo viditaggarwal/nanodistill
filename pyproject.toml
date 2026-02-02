@@ -21,6 +21,7 @@ dependencies = [
     "datasets>=2.18.0",                   # HuggingFace datasets
     "rich>=13.0.0",                       # Beautiful terminal output
     "typer>=0.9.0",                       # CLI framework
+    "psutil>=5.9.0",                      # System resource monitoring (memory, CPU)
 ]
 
 [project.optional-dependencies]

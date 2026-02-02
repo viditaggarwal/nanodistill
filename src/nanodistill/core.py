@@ -158,7 +158,7 @@ def distill(
                     "[cyan]🎓 Synthesizing CoT traces from teacher...",
                     total=None,
                 )
-                teacher_client = TeacherClient(config.teacher)
+                teacher_client = TeacherClient(config.teacher, config=config)
                 cot_traces = teacher_client.synthesize_cot(seed_data, config.instruction)
                 progress.update(task1, completed=True)
                 console.print(f"✓ Generated {len(cot_traces)} CoT traces\n")
