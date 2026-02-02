@@ -73,16 +73,14 @@ def load_seed_data(
 
             else:
                 raise ConfigError(
-                    f"Unsupported file format: {path.suffix}. "
-                    f"Supported: .json, .jsonl, .csv"
+                    f"Unsupported file format: {path.suffix}. " f"Supported: .json, .jsonl, .csv"
                 )
 
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             raise ConfigError(f"Failed to load seed file {path}: {str(e)}") from e
 
     raise ConfigError(
-        f"seed must be a list of dicts, file path string, or Path object, "
-        f"got {type(seed)}"
+        f"seed must be a list of dicts, file path string, or Path object, " f"got {type(seed)}"
     )
 
 

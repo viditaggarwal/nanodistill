@@ -5,7 +5,8 @@ from typing import Dict, List
 from .schemas import TaskPolicy, ThinkingTrace
 
 # System prompt for generating Chain-of-Thought traces
-COT_SYSTEM_PROMPT = """You are a reasoning-focused AI assistant. Your task is to demonstrate clear thinking process.
+COT_SYSTEM_PROMPT = """You are a reasoning-focused AI assistant.
+Your task is to demonstrate clear thinking process.
 
 When answering:
 1. Show your step-by-step thinking (this will be extracted as the 'thinking' field)
@@ -40,7 +41,8 @@ Input: {example_input}
 
 Generate your reasoning and answer following the format shown above."""
 
-    # If we have a reference output, include it as a hint (but teacher should provide their own reasoning)
+    # If we have a reference output, include it as a hint
+    # (but teacher should provide their own reasoning)
     if example_output:
         prompt += f"\n\nExpected output (for reference): {example_output}"
 
@@ -48,7 +50,8 @@ Generate your reasoning and answer following the format shown above."""
 
 
 # System prompt for policy extraction
-POLICY_EXTRACTION_SYSTEM_PROMPT = """You are an expert at analyzing task patterns and extracting implicit rules.
+POLICY_EXTRACTION_SYSTEM_PROMPT = """You are an expert at analyzing task patterns.
+Extract implicit rules from examples and reasoning traces.
 
 Your job is to analyze seed examples and their reasoning traces to understand:
 1. What the task is fundamentally about
@@ -94,19 +97,20 @@ Please analyze these examples and extract the underlying task policy. Consider:
 3. **Output Format**: What structure do outputs follow? What should be included?
 4. **Reasoning Style**: What kind of reasoning is needed? (analytical, creative, systematic, etc.)
 5. **Key Constraints**: What rules or constraints must be followed?
-6. **Difficulty Level**: What is the difficulty level? (beginner, intermediate, advanced)
-7. **Reasoning Patterns**: What reasoning patterns are used? (break into parts, check alternatives, verify, etc.)
+6. **Difficulty Level**: (beginner, intermediate, advanced)
+7. **Reasoning Patterns**: (break into parts, check alternatives, verify)
 8. **Examples Summary**: What do these examples demonstrate?
 9. **Input Length**: Are inputs typically short, medium, or long?
 10. **Output Length**: Are outputs typically short, medium, or long?
 
-Respond in a structured format that can be used to generate new examples following the same pattern."""
+Respond in a structured format to generate new examples following the pattern."""
 
     return prompt
 
 
 # System prompt for synthetic example generation
-SYNTHETIC_GENERATION_SYSTEM_PROMPT = """You are an expert at generating diverse examples that follow a specific task pattern.
+SYNTHETIC_GENERATION_SYSTEM_PROMPT = """You are an expert at generating diverse examples.
+Follow a specific task pattern consistently.
 
 Your job is to create new examples that:
 1. Follow the exact pattern described in the policy
@@ -145,8 +149,8 @@ Task Policy (extracted from {seed_count} seed examples):
 - Output Format: {policy.output_format}
 - Reasoning Style: {policy.reasoning_style}
 - Difficulty: {policy.difficulty_level}
-- Key Constraints: {', '.join(policy.key_constraints) if policy.key_constraints else 'None specified'}
-- Reasoning Patterns: {', '.join(policy.reasoning_patterns) if policy.reasoning_patterns else 'None specified'}
+- Key Constraints: {', '.join(policy.key_constraints) if policy.key_constraints else 'None'}
+- Patterns: {', '.join(policy.reasoning_patterns) if policy.reasoning_patterns else 'None'}
 - Input Length: {policy.input_length_range}
 - Output Length: {policy.output_length_range}
 

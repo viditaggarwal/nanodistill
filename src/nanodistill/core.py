@@ -142,8 +142,12 @@ def distill(
         use_existing_data = amplified_path.exists()
 
         if use_existing_data:
-            console.print(f"[bold yellow]⚡ Found existing amplified data at {amplified_path}[/bold yellow]")
-            console.print(f"[yellow]   Skipping API calls and going directly to fine-tuning...\n[/yellow]")
+            console.print(
+                f"[bold yellow]⚡ Found existing amplified data at {amplified_path}[/bold yellow]"
+            )
+            console.print(
+                "[yellow]   Skipping API calls and going directly to fine-tuning...\n[/yellow]"
+            )
 
         # Execute pipeline
         with Progress(
@@ -191,7 +195,7 @@ def distill(
                 console.print(f"  Saved to: {amplified_path}")
             else:
                 # Load existing amplified data
-                console.print(f"📂 Loading existing amplified data...")
+                console.print("📂 Loading existing amplified data...")
                 amplified_traces = load_traces_from_jsonl(str(amplified_path))
                 console.print(f"✓ Loaded {len(amplified_traces)} training examples\n")
 
@@ -223,22 +227,22 @@ def distill(
         console.print("\n[bold green]✅ Distillation Complete![/bold green]")
         console.print(f"Model path: {result.model_path}")
         console.print(f"Training examples: {result.metrics['training_examples']}")
-        console.print(f"\nNext steps:")
-        console.print(f"1. Test the model locally with llama.cpp or MLX")
-        console.print(f"2. Compare against teacher model (Claude) on test set")
-        console.print(f"3. Iterate: adjust seed data or augment_factor as needed")
+        console.print("\nNext steps:")
+        console.print("1. Test the model locally with llama.cpp or MLX")
+        console.print("2. Compare against teacher model (Claude) on test set")
+        console.print("3. Iterate: adjust seed data or augment_factor as needed")
 
         return result
 
     except ConfigError as e:
-        console.print(f"\n[bold red]❌ Configuration Error[/bold red]")
+        console.print("\n[bold red]❌ Configuration Error[/bold red]")
         console.print(str(e))
         raise
     except NanoDistillError as e:
-        console.print(f"\n[bold red]❌ Distillation Error[/bold red]")
+        console.print("\n[bold red]❌ Distillation Error[/bold red]")
         console.print(str(e))
         raise
     except Exception as e:
-        console.print(f"\n[bold red]❌ Unexpected Error[/bold red]")
+        console.print("\n[bold red]❌ Unexpected Error[/bold red]")
         console.print(f"{type(e).__name__}: {str(e)}")
         raise NanoDistillError(f"Distillation failed: {str(e)}") from e

@@ -3,7 +3,6 @@
 import pytest
 
 from nanodistill.config import DistillationConfig
-from nanodistill.utils.errors import ConfigError
 
 
 def test_config_valid(sample_seed_data, sample_instruction):
@@ -64,5 +63,3 @@ def test_config_empty_input():
             ],
             instruction="Test instruction",
         )
-
-

@@ -16,8 +16,8 @@ Example:
     >>> print(f"Model ready: {result.model_path}")
 """
 
-from .core import DistillationResult, distill
 from .config import DistillationConfig
+from .core import DistillationResult, distill
 
 __version__ = "0.1.0"
 

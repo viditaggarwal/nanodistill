@@ -1,6 +1,7 @@
 """Tests for data loading and formatting."""
 
 import json
+
 import pytest
 
 from nanodistill.data import load_seed_data, to_dict_list, to_hf_dataset

@@ -53,9 +53,7 @@ def filter_extra_fields(
             removed_fields.append(key)
 
     if removed_fields and logger:
-        logger.info(
-            f"Filtered {len(removed_fields)} extra fields: {', '.join(removed_fields)}"
-        )
+        logger.info(f"Filtered {len(removed_fields)} extra fields: {', '.join(removed_fields)}")
 
     return filtered
 

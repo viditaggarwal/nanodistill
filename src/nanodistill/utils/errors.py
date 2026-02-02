@@ -1,7 +1,6 @@
 """Custom exceptions and error handling for NanoDistill."""
 
 import os
-from typing import Optional
 
 
 class NanoDistillError(Exception):

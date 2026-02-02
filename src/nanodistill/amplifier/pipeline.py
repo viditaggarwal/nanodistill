@@ -68,9 +68,7 @@ class AmplificationPipeline:
 
         # Convert synthetic examples to ThinkingTrace (generate CoT for each)
         # For synthetic examples, we use the teacher to generate reasoning
-        synthetic_traces = self._synthesize_cot_for_synthetic(
-            synthetic_examples, instruction
-        )
+        synthetic_traces = self._synthesize_cot_for_synthetic(synthetic_examples, instruction)
 
         # Combine original and synthetic
         amplified_traces.extend(synthetic_traces)

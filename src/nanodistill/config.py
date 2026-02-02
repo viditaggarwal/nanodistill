@@ -1,7 +1,7 @@
 """Configuration and validation for NanoDistill distillation runs."""
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -142,7 +142,7 @@ class DistillationConfig(BaseModel):
 
     memory_hard_limit_gb: int = Field(
         default=12,
-        description="Hard stop limit - training stops if memory exceeds this (GB). Must be >= max_memory_gb.",
+        description="Hard stop limit. Must be >= max_memory_gb.",
         ge=2,
         le=128,
     )
@@ -273,9 +273,8 @@ class DistillationConfig(BaseModel):
     def validate_memory_limits(cls, v: int, info) -> int:
         """Ensure hard limit >= max memory."""
         if info.data.get("max_memory_gb") and v < info.data["max_memory_gb"]:
-            raise ValueError(
-                f"memory_hard_limit_gb ({v}) must be >= max_memory_gb ({info.data['max_memory_gb']})"
-            )
+            max_mem = info.data["max_memory_gb"]
+            raise ValueError(f"memory_hard_limit_gb ({v}) must be >= max_memory_gb ({max_mem})")
         return v
 
     def model_post_init(self, __context) -> None:

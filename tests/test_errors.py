@@ -1,6 +1,7 @@
 """Tests for error handling and validation."""
 
 import os
+
 import pytest
 
 from nanodistill.utils.errors import (

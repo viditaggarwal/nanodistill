@@ -13,9 +13,7 @@ class ThinkingTrace(BaseModel):
 
     input: str = Field(..., description="User input / question")
 
-    thinking: str = Field(
-        ..., description="Step-by-step reasoning inside <thinking> tags"
-    )
+    thinking: str = Field(..., description="Step-by-step reasoning inside <thinking> tags")
 
     output: str = Field(..., description="Final answer inside <answer> tags")
 
@@ -33,23 +31,15 @@ class TeacherResponse(BaseModel):
     Contains the generated traces and metadata about the API call.
     """
 
-    traces: List[ThinkingTrace] = Field(
-        ..., description="Generated Chain-of-Thought traces"
-    )
+    traces: List[ThinkingTrace] = Field(..., description="Generated Chain-of-Thought traces")
 
     model_used: str = Field(..., description="Teacher model name (e.g., claude-sonnet-4-5)")
 
-    total_tokens: int = Field(
-        default=0, description="Total tokens used in generation"
-    )
+    total_tokens: int = Field(default=0, description="Total tokens used in generation")
 
-    input_tokens: int = Field(
-        default=0, description="Tokens used in input prompts"
-    )
+    input_tokens: int = Field(default=0, description="Tokens used in input prompts")
 
-    output_tokens: int = Field(
-        default=0, description="Tokens used in generated responses"
-    )
+    output_tokens: int = Field(default=0, description="Tokens used in generated responses")
 
 
 class TaskPolicy(BaseModel):
@@ -62,9 +52,7 @@ class TaskPolicy(BaseModel):
         ..., description="What the task is about (extracted from instruction + examples)"
     )
 
-    input_format: str = Field(
-        ..., description="Description of expected input format and structure"
-    )
+    input_format: str = Field(..., description="Description of expected input format and structure")
 
     output_format: str = Field(
         ..., description="Description of expected output format and structure"

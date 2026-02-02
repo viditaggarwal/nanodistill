@@ -19,7 +19,7 @@ from .prompts import (
     build_policy_extraction_prompt,
     build_synthetic_generation_prompt,
 )
-from .schemas import TaskPolicy, TeacherResponse, ThinkingTrace
+from .schemas import TaskPolicy, ThinkingTrace
 
 if TYPE_CHECKING:
     from ..config import DistillationConfig
@@ -111,7 +111,11 @@ class TeacherClient:
                 # Try to extract thinking (anything before the answer)
                 if "thinking" in response_text.lower() or "work through" in response_text.lower():
                     # Split by common answer indicators
-                    parts = re.split(r"\n(?:answer|final answer|output|json):", response_text, flags=re.IGNORECASE)
+                    parts = re.split(
+                        r"\n(?:answer|final answer|output|json):",
+                        response_text,
+                        flags=re.IGNORECASE,
+                    )
                     if len(parts) > 1:
                         thinking = parts[0].strip()
                         output = parts[1].strip()
@@ -128,10 +132,7 @@ class TeacherClient:
                     total_tokens += response.usage.total_tokens
 
                 trace = ThinkingTrace(
-                    input=example["input"],
-                    thinking=thinking,
-                    output=output,
-                    confidence=0.9
+                    input=example["input"], thinking=thinking, output=output, confidence=0.9
                 )
                 traces.append(trace)
 
@@ -162,9 +163,7 @@ class TeacherClient:
             TeacherAPIError: If API call fails
         """
         try:
-            prompt = build_policy_extraction_prompt(
-                seed_examples, cot_traces, instruction
-            )
+            prompt = build_policy_extraction_prompt(seed_examples, cot_traces, instruction)
 
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -183,9 +182,7 @@ class TeacherClient:
             return response
 
         except Exception as e:
-            raise TeacherAPIError(
-                f"Failed to extract task policy: {str(e)}"
-            ) from e
+            raise TeacherAPIError(f"Failed to extract task policy: {str(e)}") from e
 
     def generate_synthetic_examples(
         self,
@@ -222,16 +219,12 @@ class TeacherClient:
                 )
 
             # Fallback to text parsing for backward compatibility
-            return self._generate_with_text_parsing(
-                policy, num_examples, instruction, seed_count
-            )
+            return self._generate_with_text_parsing(policy, num_examples, instruction, seed_count)
 
         except TeacherAPIError:
             raise
         except Exception as e:
-            raise TeacherAPIError(
-                f"Failed to generate synthetic examples: {str(e)}"
-            ) from e
+            raise TeacherAPIError(f"Failed to generate synthetic examples: {str(e)}") from e
 
     def _generate_with_text_parsing(
         self,
@@ -251,9 +244,7 @@ class TeacherClient:
         Returns:
             List of generated examples with 'input' and 'output' fields
         """
-        prompt = build_synthetic_generation_prompt(
-            policy, num_examples, instruction, seed_count
-        )
+        prompt = build_synthetic_generation_prompt(policy, num_examples, instruction, seed_count)
 
         # Get LiteLLM kwargs from config (temperature + user-provided params)
         litellm_kwargs = {}
@@ -313,9 +304,7 @@ class TeacherClient:
         examples = []
         valid_count = 0
 
-        prompt = build_synthetic_generation_prompt(
-            policy, num_examples, instruction, seed_count
-        )
+        prompt = build_synthetic_generation_prompt(policy, num_examples, instruction, seed_count)
 
         # Get LiteLLM kwargs from config (temperature + user-provided params)
         litellm_kwargs = {}
@@ -348,14 +337,10 @@ class TeacherClient:
 
                 try:
                     # Convert Pydantic instance to dict
-                    output_dict = instance.model_dump(mode='json')
+                    output_dict = instance.model_dump(mode="json")
 
                     # Filter extra fields
-                    filtered_dict = filter_extra_fields(
-                        output_dict,
-                        response_model,
-                        logger
-                    )
+                    filtered_dict = filter_extra_fields(output_dict, response_model, logger)
 
                     # Reconstruct training example format
                     # Note: output_dict may have "input" field from the model
@@ -367,11 +352,7 @@ class TeacherClient:
                     }
 
                     # Validate against schema
-                    is_valid, error = validate_against_schema(
-                        filtered_dict,
-                        response_model,
-                        logger
-                    )
+                    is_valid, error = validate_against_schema(filtered_dict, response_model, logger)
 
                     if is_valid:
                         examples.append(example)
@@ -384,9 +365,7 @@ class TeacherClient:
                     continue
 
             # Log generation summary
-            logger.info(
-                f"Generated {valid_count}/{num_examples} valid schema-compliant examples"
-            )
+            logger.info(f"Generated {valid_count}/{num_examples} valid schema-compliant examples")
 
             # Verify we got enough valid examples
             if len(examples) < num_examples:
@@ -404,13 +383,9 @@ class TeacherClient:
                 f"Schema-based generation failed, falling back to text parsing: {str(e)}"
             )
             # Fallback to text parsing
-            return self._generate_with_text_parsing(
-                policy, num_examples, instruction, seed_count
-            )
+            return self._generate_with_text_parsing(policy, num_examples, instruction, seed_count)
 
-    def _parse_synthetic_examples(
-        self, response_text: str
-    ) -> List[Dict[str, str]]:
+    def _parse_synthetic_examples(self, response_text: str) -> List[Dict[str, str]]:
         """Parse synthetic examples from teacher response text.
 
         Handles multiple formats:
@@ -450,19 +425,19 @@ class TeacherClient:
                         continue
 
                     # Extract everything between Input and Output
-                    input_section = block[input_start + len("**Input:**"):output_start].strip()
+                    input_section = block[input_start + len("**Input:**") : output_start].strip()
 
                     # Remove quotes if present
                     if input_section.startswith('"') and '"\n' in input_section:
                         input_section = input_section[1:]
-                        input_section = input_section[:input_section.find('"\n')].strip()
+                        input_section = input_section[: input_section.find('"\n')].strip()
                     elif input_section.startswith('"') and '"' in input_section[1:]:
-                        input_section = input_section[1:input_section.rfind('"')]
+                        input_section = input_section[1 : input_section.rfind('"')]
 
                     input_text = input_section.strip()
 
                     # Extract output (between Output marker and next Example or backticks)
-                    output_section = block[output_start + len("**Output:**"):].strip()
+                    output_section = block[output_start + len("**Output:**") :].strip()
 
                     # If in code block, extract JSON
                     if "```" in output_section:
@@ -483,7 +458,9 @@ class TeacherClient:
 
         # Strategy 2: Split by "Input:" / "Output:" pattern
         if not examples:
-            blocks = re.split(r"(?:^|\n)(?:-\s*)?(?:Input|Question|Prompt):", response_text, flags=re.IGNORECASE)
+            blocks = re.split(
+                r"(?:^|\n)(?:-\s*)?(?:Input|Question|Prompt):", response_text, flags=re.IGNORECASE
+            )
             for block in blocks[1:]:
                 lines = block.strip().split("\n")
                 if not lines:
@@ -495,7 +472,12 @@ class TeacherClient:
                 output_text = ""
                 for line in lines[1:]:
                     if re.match(r"^\s*(?:-\s*)?(?:Output|Answer|Response):", line, re.IGNORECASE):
-                        output_text = re.sub(r"^\s*(?:-\s*)?(?:Output|Answer|Response):\s*", "", line, flags=re.IGNORECASE).strip()
+                        output_text = re.sub(
+                            r"^\s*(?:-\s*)?(?:Output|Answer|Response):\s*",
+                            "",
+                            line,
+                            flags=re.IGNORECASE,
+                        ).strip()
                         break
 
                 if input_text and output_text and len(input_text) > 5:
@@ -509,10 +491,26 @@ class TeacherClient:
                     json_data = json.loads(json_match.group())
                     for item in json_data:
                         if isinstance(item, dict):
-                            input_key = next((k for k in item.keys() if "input" in k.lower() or "question" in k.lower()), None)
-                            output_key = next((k for k in item.keys() if "output" in k.lower() or "answer" in k.lower()), None)
+                            input_key = next(
+                                (
+                                    k
+                                    for k in item.keys()
+                                    if "input" in k.lower() or "question" in k.lower()
+                                ),
+                                None,
+                            )
+                            output_key = next(
+                                (
+                                    k
+                                    for k in item.keys()
+                                    if "output" in k.lower() or "answer" in k.lower()
+                                ),
+                                None,
+                            )
                             if input_key and output_key:
-                                examples.append({"input": str(item[input_key]), "output": str(item[output_key])})
+                                examples.append(
+                                    {"input": str(item[input_key]), "output": str(item[output_key])}
+                                )
                 except (json.JSONDecodeError, TypeError):
                     pass
 

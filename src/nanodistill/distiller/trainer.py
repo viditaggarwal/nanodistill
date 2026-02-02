@@ -6,7 +6,6 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import numpy as np
 from datasets import Dataset
 
 from ..utils.errors import TrainingError
@@ -46,7 +45,7 @@ class MLXTrainer:
             import mlx.core as mx
             import mlx.nn as nn
             import mlx.optimizers as optim
-            from mlx_lm import load, generate
+            from mlx_lm import generate, load
 
             self.mx = mx
             self.nn = nn
@@ -55,9 +54,7 @@ class MLXTrainer:
             self.generate = generate
 
         except ImportError as e:
-            raise TrainingError(
-                "MLX-LM not installed. Install with: pip install mlx mlx-lm"
-            ) from e
+            raise TrainingError("MLX-LM not installed. Install with: pip install mlx mlx-lm") from e
 
         self.student_model = student_model
         self.config = config
@@ -114,19 +111,17 @@ class MLXTrainer:
             self._setup_lora()
 
         except Exception as e:
-            raise TrainingError(
-                f"Failed to load model {self.student_model}: {str(e)}"
-            ) from e
+            raise TrainingError(f"Failed to load model {self.student_model}: {str(e)}") from e
 
     def _setup_lora(self) -> None:
         """LoRA setup - handled by MLX-LM tuner during training."""
         lora_rank = self.config.lora_rank
         lora_layers = self.config.lora_layers
 
-        print(f"LoRA configuration:")
+        print("LoRA configuration:")
         print(f"  Rank: {lora_rank}")
         print(f"  Target layers: Last {lora_layers} layers")
-        print(f"  (Initialization will happen during training with MLX-LM tuner)\n")
+        print("  (Initialization will happen during training with MLX-LM tuner)\n")
 
     def _prepare_dataset(self, dataset: Dataset) -> List[Dict]:
         """Prepare dataset for training.
@@ -148,10 +143,12 @@ Output: {example['output']}"""
 
             tokens = self.tokenizer.encode(text)
 
-            formatted_data.append({
-                "text": text,
-                "input_ids": tokens,
-            })
+            formatted_data.append(
+                {
+                    "text": text,
+                    "input_ids": tokens,
+                }
+            )
 
         return formatted_data
 
@@ -169,6 +166,7 @@ Output: {example['output']}"""
             learning_rate: Learning rate
         """
         import subprocess
+
         import psutil
 
         def check_system_capacity() -> bool:
@@ -176,7 +174,7 @@ Output: {example['output']}"""
             try:
                 # Get memory info
                 mem_info = psutil.virtual_memory()
-                memory_used_gb = mem_info.used / (1024 ** 3)
+                memory_used_gb = mem_info.used / (1024**3)
                 memory_percent = mem_info.percent
 
                 # Get configured limits
@@ -185,8 +183,12 @@ Output: {example['output']}"""
 
                 # Hard cap at memory_hard_limit_gb
                 if memory_used_gb > memory_hard_limit_gb:
-                    print(f"\n🛑 MEMORY HARD CAP HIT: {memory_used_gb:.2f}GB > {memory_hard_limit_gb}GB limit!")
-                    print(f"   Stopping training to prevent system crash...")
+                    msg = (
+                        f"\n🛑 MEMORY HARD CAP HIT: {memory_used_gb:.2f}GB "
+                        f"> {memory_hard_limit_gb}GB limit!"
+                    )
+                    print(msg)
+                    print("   Stopping training to prevent system crash...")
                     return False
 
                 # Check CPU usage (average over 100ms)
@@ -196,9 +198,13 @@ Output: {example['output']}"""
 
                 if capacity > (cpu_capacity_percent * 100):
                     print(f"\n⚠️  System capacity at {capacity:.1f}%")
-                    print(f"   Memory: {memory_used_gb:.2f}GB / {memory_hard_limit_gb}GB max ({memory_percent:.1f}%)")
+                    mem_msg = (
+                        f"   Memory: {memory_used_gb:.2f}GB / "
+                        f"{memory_hard_limit_gb}GB max ({memory_percent:.1f}%)"
+                    )
+                    print(mem_msg)
                     print(f"   CPU: {cpu_percent:.1f}%")
-                    print(f"   Waiting for system to cool down...")
+                    print("   Waiting for system to cool down...")
                     return False
 
                 return True
@@ -243,7 +249,7 @@ Output: {example['output']}"""
         steps_per_report = max(1, iters // 20)  # Report ~20 times during training
 
         print(f"\n{'='*60}")
-        print(f"Training Configuration")
+        print("Training Configuration")
         print(f"{'='*60}")
         print(f"  Model: {self.student_model}")
         print(f"  Training examples: {len(train_data)}")
@@ -258,9 +264,9 @@ Output: {example['output']}"""
         print(f"  Steps per report: {steps_per_report}\n")
 
         print(f"{'='*60}")
-        print(f"Starting Fine-Tuning with Gradient-Based LoRA Training")
+        print("Starting Fine-Tuning with Gradient-Based LoRA Training")
         print(f"{'='*60}")
-        print(f"⚙️  System capacity monitoring: Keeping usage below 80%\n")
+        print("⚙️  System capacity monitoring: Keeping usage below 80%\n")
 
         # Use MLX-LM CLI for training (handles gradients, optimizer, checkpoints)
         try:
@@ -280,30 +286,43 @@ Output: {example['output']}"""
             max_seq_length = self.config.max_seq_length
 
             cmd = [
-                "python", "-m", "mlx_lm", "lora",
-                "--model", self.student_model,
+                "python",
+                "-m",
+                "mlx_lm",
+                "lora",
+                "--model",
+                self.student_model,
                 "--train",
-                "--data", str(data_dir),
-                "--iters", str(iters),
-                "--batch-size", str(batch_size),
-                "--learning-rate", str(learning_rate),
-                "--num-layers", str(lora_layers),
-                "--adapter-path", str(adapter_path),
-                "--steps-per-report", str(steps_per_report),
-                "--save-every", str(iters),  # Save at end
-                "--max-seq-length", str(max_seq_length),
+                "--data",
+                str(data_dir),
+                "--iters",
+                str(iters),
+                "--batch-size",
+                str(batch_size),
+                "--learning-rate",
+                str(learning_rate),
+                "--num-layers",
+                str(lora_layers),
+                "--adapter-path",
+                str(adapter_path),
+                "--steps-per-report",
+                str(steps_per_report),
+                "--save-every",
+                str(iters),  # Save at end
+                "--max-seq-length",
+                str(max_seq_length),
             ]
 
             # Monitor system while training
             print("Starting training (monitoring system capacity)...\n")
-            result = subprocess.run(cmd, check=True, capture_output=False, env=env)
+            subprocess.run(cmd, check=True, capture_output=False, env=env)
 
             # Check system health after training
             while not check_system_capacity():
                 time.sleep(5)  # Wait 5 seconds and check again
 
             print(f"\n{'='*60}")
-            print(f"✅ Training Complete!")
+            print("✅ Training Complete!")
             print(f"{'='*60}")
             print(f"  Adapters saved to: {adapter_path}")
             print(f"  Training data saved to: {training_file}")
@@ -366,7 +385,8 @@ Output: {example['output']}"""
         # Generate README
         readme_file = model_path / "README.md"
         with open(readme_file, "w") as f:
-            f.write(f"""# Distilled Model: {model_name}
+            f.write(
+                f"""# Distilled Model: {model_name}
 
 ## Model Info
 - **Base Model**: {self.student_model}
@@ -421,7 +441,8 @@ This model was fine-tuned using knowledge distillation:
 3. Student model fine-tuned with LoRA adapters on amplified dataset
 4. Gradient-based training with AdamW optimizer (via MLX-LM tuner)
 5. Checkpoints saved incrementally during training
-""")
+"""
+            )
         print(f"✓ README saved to {readme_file}")
 
         return str(model_path)
@@ -448,9 +469,7 @@ This model was fine-tuned using knowledge distillation:
             shift_logits = logits[:, :-1, :].reshape(-1, logits.shape[-1])
             shift_labels = input_ids[:, 1:].reshape(-1)
 
-            loss = self.nn.losses.cross_entropy(
-                shift_logits, shift_labels, reduction="mean"
-            )
+            loss = self.nn.losses.cross_entropy(shift_logits, shift_labels, reduction="mean")
             self.mx.eval(loss)
             total_loss += float(loss)
 
