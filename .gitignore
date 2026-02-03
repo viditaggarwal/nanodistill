@@ -63,3 +63,4 @@ checkpoints/
 .cache/
 
 *.log
+/.claude/settings.local.json

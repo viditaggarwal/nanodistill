@@ -22,6 +22,7 @@ dependencies = [
     "rich>=13.0.0",                       # Beautiful terminal output
     "typer>=0.9.0",                       # CLI framework
     "psutil>=5.9.0",                      # System resource monitoring (memory, CPU)
+    "python-dotenv>=1.0.0",               # Load env vars from .env files
 ]
 
 [project.optional-dependencies]

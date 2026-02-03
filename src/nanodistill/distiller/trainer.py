@@ -389,8 +389,7 @@ Output: {example['output']}"""
         # Generate README
         readme_file = model_path / "README.md"
         with open(readme_file, "w") as f:
-            f.write(
-                f"""# Distilled Model: {model_name}
+            f.write(f"""# Distilled Model: {model_name}
 
 ## Model Info
 - **Base Model**: {self.student_model}
@@ -445,8 +444,7 @@ This model was fine-tuned using knowledge distillation:
 3. Student model fine-tuned with LoRA adapters on amplified dataset
 4. Gradient-based training with AdamW optimizer (via MLX-LM tuner)
 5. Checkpoints saved incrementally during training
-"""
-            )
+""")
         print(f"✓ README saved to {readme_file}")
 
         return str(model_path)

@@ -1,6 +1,7 @@
 """Tests for error handling and validation."""
 
 import os
+from unittest.mock import patch
 
 import pytest
 
@@ -18,8 +19,10 @@ def test_validate_teacher_api_key_claude_missing():
     if "ANTHROPIC_API_KEY" in os.environ:
         del os.environ["ANTHROPIC_API_KEY"]
 
-    with pytest.raises(ConfigError, match="ANTHROPIC_API_KEY"):
-        validate_teacher_api_key("claude-sonnet-4-5")
+    # Mock load_env_from_dotenv to prevent loading from ~/.env
+    with patch("nanodistill.utils.errors.load_env_from_dotenv"):
+        with pytest.raises(ConfigError, match="ANTHROPIC_API_KEY"):
+            validate_teacher_api_key("claude-sonnet-4-5")
 
 
 def test_validate_teacher_api_key_gpt_missing():
@@ -28,8 +31,10 @@ def test_validate_teacher_api_key_gpt_missing():
     if "OPENAI_API_KEY" in os.environ:
         del os.environ["OPENAI_API_KEY"]
 
-    with pytest.raises(ConfigError, match="OPENAI_API_KEY"):
-        validate_teacher_api_key("gpt-4")
+    # Mock load_env_from_dotenv to prevent loading from ~/.env
+    with patch("nanodistill.utils.errors.load_env_from_dotenv"):
+        with pytest.raises(ConfigError, match="OPENAI_API_KEY"):
+            validate_teacher_api_key("gpt-4")
 
 
 def test_validate_teacher_api_key_ollama():

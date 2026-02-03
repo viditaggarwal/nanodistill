@@ -1,6 +1,20 @@
 """Custom exceptions and error handling for NanoDistill."""
 
 import os
+from pathlib import Path
+
+
+def load_env_from_dotenv() -> None:
+    """Load environment variables from ~/.env if it exists.
+
+    This allows users to store API keys in ~/.env without manually exporting them.
+    Existing environment variables take precedence (override=False).
+    """
+    from dotenv import load_dotenv
+
+    env_path = Path.home() / ".env"
+    if env_path.exists():
+        load_dotenv(env_path, override=False)
 
 
 class NanoDistillError(Exception):
@@ -52,6 +66,9 @@ def validate_teacher_api_key(teacher_model: str) -> None:
         >>> validate_teacher_api_key("claude-sonnet-4-5")
         # Checks for ANTHROPIC_API_KEY environment variable
     """
+    # Load from ~/.env before checking (if file exists)
+    load_env_from_dotenv()
+
     teacher_lower = teacher_model.lower().strip()
 
     # Claude models require ANTHROPIC_API_KEY
