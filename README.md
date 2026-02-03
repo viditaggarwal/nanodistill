@@ -36,6 +36,9 @@ New install? Start here: [Getting started](docs/QUICK_START.md)
 
 ```bash
 export ANTHROPIC_API_KEY='sk-ant-...'
+
+# Or add to .env file
+# ANTHROPIC_API_KEY='sk-ant-...'
 ```
 
 ```python
