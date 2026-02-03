@@ -470,7 +470,6 @@ class TeacherClient:
 
                 # Find output - handle multi-line outputs
                 output_text = ""
-                output_line_idx = -1
                 for idx, line in enumerate(lines[1:], start=1):
                     if re.match(r"^\s*(?:-\s*)?(?:Output|Answer|Response):", line, re.IGNORECASE):
                         # Extract text after the Output: marker on the same line
@@ -485,11 +484,10 @@ class TeacherClient:
                             # Output is on the same line
                             output_text = same_line_text
                         else:
-                            # Output starts on the next line - collect until next example marker
-                            output_line_idx = idx
+                            # Output starts on next line - collect until next example
                             output_lines = []
                             for subsequent_line in lines[idx + 1 :]:
-                                # Stop at next example marker (e.g., "**Example 2**", "Example 2:", etc.)
+                                # Stop at next example marker
                                 if re.match(
                                     r"^\s*(?:\*\*)?Example\s*\d+|^---+$|^\s*(?:-\s*)?(?:Input|Question|Prompt):",
                                     subsequent_line,
