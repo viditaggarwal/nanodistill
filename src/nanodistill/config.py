@@ -164,6 +164,11 @@ class DistillationConfig(BaseModel):
         description="Additional MLX-LM parameters (lora_dropout, warmup_steps, seed, etc.)",
     )
 
+    suppress_warnings: bool = Field(
+        default=False,
+        description="Suppress training warnings (e.g., sequence truncation warnings). Default: False (show warnings)",
+    )
+
     @staticmethod
     def get_system_defaults() -> tuple[int, int]:
         """Auto-detect system capabilities and return safe defaults.

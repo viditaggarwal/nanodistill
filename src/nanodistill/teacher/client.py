@@ -25,6 +25,38 @@ if TYPE_CHECKING:
     from ..config import DistillationConfig
 
 
+def _clean_json_string(text: str) -> str:
+    """Remove wrapping tags, code blocks, and whitespace from JSON strings.
+
+    Handles:
+    - <answer>...</answer> tags
+    - ```json ... ``` code blocks
+    - Extra whitespace and newlines
+
+    Args:
+        text: Potentially wrapped JSON string
+
+    Returns:
+        Clean JSON string ready for parsing
+    """
+    text = text.strip()
+
+    # Remove <answer> tags
+    if text.startswith("<answer>"):
+        text = text[8:]  # Remove opening tag
+    if text.endswith("</answer>"):
+        text = text[:-9]  # Remove closing tag
+
+    # Remove markdown code blocks (```json ... ``` or just ``` ... ```)
+    if text.startswith("```"):
+        # Remove opening backticks and optional 'json' language identifier
+        text = re.sub(r"^```(?:json)?\s*\n?", "", text)
+        # Remove closing backticks
+        text = re.sub(r"\n?```$", "", text)
+
+    return text.strip()
+
+
 def _create_synthetic_example_wrapper(output_model: Type[BaseModel]) -> Type[BaseModel]:
     """Dynamically create a wrapper model for synthetic example generation.
 
@@ -125,6 +157,9 @@ class TeacherClient:
 
                 # Ensure input matches the seed example
                 trace.input = example["input"]
+
+                # Clean output field if it contains wrapped JSON
+                trace.output = _clean_json_string(trace.output)
 
                 traces.append(trace)
                 logger.debug(f"Generated CoT trace {i}/{len(seed_examples)}")
@@ -334,7 +369,14 @@ class TeacherClient:
 
                 try:
                     # instance.input is str, instance.output is response_model instance
-                    output_dict = instance.output.model_dump(mode="json")
+                    # If output is a string (fallback), clean and parse it
+                    if isinstance(instance.output, str):
+                        # Output field is a string (shouldn't happen with proper Pydantic, but handle it)
+                        cleaned = _clean_json_string(instance.output)
+                        output_dict = json.loads(cleaned)
+                    else:
+                        # Output field is properly parsed Pydantic model
+                        output_dict = instance.output.model_dump(mode="json")
 
                     # Filter to only schema fields
                     filtered_dict = filter_extra_fields(output_dict, response_model, logger)

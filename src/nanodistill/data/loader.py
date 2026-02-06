@@ -179,6 +179,28 @@ def save_traces_to_jsonl(
             f.write(trace.model_dump_json() + "\n")
 
 
+def append_traces_to_jsonl(
+    traces: List[ThinkingTrace],
+    output_path: Union[str, Path],
+) -> None:
+    """Append ThinkingTrace objects to JSONL file.
+
+    Creates file if it doesn't exist, otherwise appends to existing file.
+
+    Args:
+        traces: List of Chain-of-Thought traces to append
+        output_path: Path to output JSONL file
+    """
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Use append mode if file exists, write mode if new
+    mode = "a" if output_path.exists() else "w"
+    with open(output_path, mode) as f:
+        for trace in traces:
+            f.write(trace.model_dump_json() + "\n")
+
+
 def load_traces_from_jsonl(
     input_path: Union[str, Path],
 ) -> List[ThinkingTrace]:

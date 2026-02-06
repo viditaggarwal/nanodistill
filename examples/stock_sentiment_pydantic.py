@@ -408,17 +408,20 @@ def run_distillation(output_dir: str = "./outputs") -> DistillationResult:
     ensuring all amplified examples match the expected output format exactly.
     """
     return distill(
-        name="stock-sentiment-v2",
+        name="stock-sentiment-v3",
         seed=seed_data,
         instruction=INSTRUCTION,
         teacher="claude-sonnet-4-5",
         student="mlx-community/Qwen2.5-7B-Instruct-4bit",
-        augment_factor=5,
+        augment_factor=2,
         output_dir=output_dir,
         response_model=StockAnalysis,  # Enforce schema on synthetic data
         learning_rate=1e-5,  # Much lower to prevent divergence
         num_train_epochs=1,  # Reduce to 1 epoch
         batch_size=1,  # Minimal batch size for memory safety
+        max_seq_length=1024,
+        lora_rank=4,
+        lora_layers=2
     )
 
 

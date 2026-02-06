@@ -1,8 +1,10 @@
 """MLX-LM trainer for fine-tuning student models on Apple Silicon."""
 
 import json
+import logging
 import os
 import time
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -283,6 +285,12 @@ Output: {example['output']}"""
             env["OMP_NUM_THREADS"] = str(limited_cpus)
             env["MKL_NUM_THREADS"] = str(limited_cpus)
             env["OPENBLAS_NUM_THREADS"] = str(limited_cpus)
+
+            # Suppress warnings if configured
+            if self.config.suppress_warnings:
+                env["PYTHONWARNINGS"] = "ignore"
+                logging.getLogger().setLevel(logging.ERROR)
+                warnings.filterwarnings("ignore")
 
             print(f"Limiting CPU threads to {limited_cpus}/{available_cpus} (80%)")
             print(f"Batch size: {batch_size} (reduce if OOM errors occur)\n")

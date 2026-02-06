@@ -156,9 +156,15 @@ Please generate {num_examples} NEW examples (not variations of the seeds) that:
 4. Are realistic and of high quality
 5. Maintain consistent difficulty level
 
+CRITICAL FORMATTING INSTRUCTIONS:
+- For the output field: Generate ONLY raw JSON matching the schema (no markdown, no code blocks, no tags)
+- Do NOT wrap the JSON in ```json code blocks
+- Do NOT wrap the JSON in <answer> tags or any other XML tags
+- Output must be valid JSON that can be parsed directly
+
 For each example, provide:
 - Input: [the question/task]
-- Output: [the answer/response]
+- Output: [raw JSON only, no extra formatting]
 
 Generate the examples now:"""
 

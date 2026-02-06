@@ -139,17 +139,42 @@ def distill(
         # Initialize components
         distiller = MLXTrainer(config.student, config)
 
-        # Check if amplified data already exists
+        # Check for existing amplified data and determine resume point
         amplified_path = Path(config.output_dir) / config.name / "traces_amplified.jsonl"
-        use_existing_data = amplified_path.exists()
+        use_existing_data = False
+        resume_amplification = False
 
-        if use_existing_data:
-            console.print(
-                f"[bold yellow]⚡ Found existing amplified data at {amplified_path}[/bold yellow]"
-            )
-            console.print(
-                "[yellow]   Skipping API calls and going directly to fine-tuning...\n[/yellow]"
-            )
+        if amplified_path.exists():
+            try:
+                all_traces = load_traces_from_jsonl(str(amplified_path))
+                existing_synthetic = len(all_traces) - len(seed_data)
+                total_synthetic = len(seed_data) * (config.augment_factor - 1)
+
+                if existing_synthetic >= total_synthetic:
+                    # Amplification complete
+                    use_existing_data = True
+                    console.print(
+                        f"[bold yellow]⚡ Found complete amplification data[/bold yellow]"
+                    )
+                    console.print(
+                        "[yellow]   Skipping API calls and going directly to fine-tuning...\n[/yellow]"
+                    )
+                else:
+                    # Amplification incomplete - resume
+                    resume_amplification = True
+                    completed_batches = existing_synthetic // len(seed_data)
+                    total_batches = config.augment_factor - 1
+                    console.print(
+                        f"[bold yellow]⚡ Found partial amplification: {existing_synthetic}/{total_synthetic} synthetic examples[/bold yellow]"
+                    )
+                    console.print(
+                        f"[yellow]   Resuming from batch {completed_batches + 1}/{total_batches}...\n[/yellow]"
+                    )
+            except Exception:
+                # If checkpoint is corrupted, start fresh
+                console.print(
+                    "[bold yellow]⚠️  Corrupted amplification checkpoint, starting fresh[/bold yellow]\n"
+                )
 
         # Execute pipeline
         with Progress(
@@ -159,47 +184,82 @@ def distill(
         ) as progress:
 
             if not use_existing_data:
-                # Stage 1: Generate CoT traces from seed
-                task1 = progress.add_task(
-                    "[cyan]🎓 Synthesizing CoT traces from teacher...",
-                    total=None,
-                )
-                teacher_client = TeacherClient(config.teacher, config=config)
-                cot_traces = teacher_client.synthesize_cot(seed_data, config.instruction)
-                progress.update(task1, completed=True)
-                console.print(f"✓ Generated {len(cot_traces)} CoT traces\n")
-
-                # Save intermediate CoT traces
+                # Stage 1: Generate CoT traces from seed (if not cached)
                 traces_path = Path(config.output_dir) / config.name / "traces_cot.jsonl"
-                traces_path.parent.mkdir(parents=True, exist_ok=True)
-                save_traces_to_jsonl(cot_traces, traces_path)
-                console.print(f"  Saved to: {traces_path}")
+                if not resume_amplification and traces_path.exists():
+                    # Load cached CoT traces
+                    console.print("📂 Loading existing CoT traces...")
+                    cot_traces = load_traces_from_jsonl(str(traces_path))
+                    console.print(f"✓ Loaded {len(cot_traces)} CoT traces\n")
+                    teacher_client = TeacherClient(config.teacher, config=config)
+                else:
+                    # Generate new CoT traces
+                    task1 = progress.add_task(
+                        "[cyan]🎓 Synthesizing CoT traces from teacher...",
+                        total=None,
+                    )
+                    teacher_client = TeacherClient(config.teacher, config=config)
+                    cot_traces = teacher_client.synthesize_cot(seed_data, config.instruction)
+                    progress.update(task1, completed=True)
+                    console.print(f"✓ Generated {len(cot_traces)} CoT traces\n")
 
-                # Stage 2: Amplify dataset through policy extraction and synthesis
-                task2 = progress.add_task(
-                    "[yellow]📈 Amplifying dataset (policy → synthesis)...",
-                    total=None,
-                )
-                amplifier = AmplificationPipeline(teacher_client)
-                amplified_traces, policy = amplifier.amplify(
-                    seed_data,
-                    cot_traces,
-                    config.instruction,
-                    config.augment_factor,
-                    response_model=response_model,
-                )
-                progress.update(task2, completed=True)
-                console.print(f"✓ Amplified to {len(amplified_traces)} training examples\n")
+                    # Save intermediate CoT traces
+                    traces_path.parent.mkdir(parents=True, exist_ok=True)
+                    save_traces_to_jsonl(cot_traces, traces_path)
+                    console.print(f"  Saved to: {traces_path}")
 
-                # Save amplified traces
-                amplified_path.parent.mkdir(parents=True, exist_ok=True)
-                save_traces_to_jsonl(amplified_traces, amplified_path)
-                console.print(f"  Saved to: {amplified_path}")
+                # Stage 2: Amplify dataset through policy extraction and synthesis (incremental)
+                num_batches = max(0, config.augment_factor - 1)
 
-                # Save extracted task policy
-                policy_path = amplified_path.parent / "task_policy.json"
-                _save_policy(policy, policy_path)
-                console.print(f"  Saved to: {policy_path}")
+                if num_batches > 0:
+                    task2 = progress.add_task(
+                        "[yellow]📈 Amplifying dataset (policy → synthesis)...",
+                        total=num_batches,
+                    )
+
+                    amplifier = AmplificationPipeline(teacher_client)
+                    amplify_gen = amplifier.amplify(
+                        seed_data,
+                        cot_traces,
+                        config.instruction,
+                        config.augment_factor,
+                        output_path=amplified_path,
+                        response_model=response_model,
+                    )
+
+                    # Consume generator to get final results and display batch progress
+                    # Use manual iteration to properly capture StopIteration with return value
+                    amplified_traces = None
+                    policy = None
+                    try:
+                        while True:
+                            batch_num, total_batches, current_synthetic, total_synthetic = next(amplify_gen)
+                            progress.update(task2, completed=batch_num)
+                            console.print(
+                                f"  Batch {batch_num}/{total_batches} complete "
+                                f"({current_synthetic}/{total_synthetic} synthetic examples)"
+                            )
+                    except StopIteration as e:
+                        # Capture return value from generator
+                        if e.value:
+                            amplified_traces, policy = e.value
+                        else:
+                            # Fallback if generator ended without explicit return
+                            amplified_traces = cot_traces.copy()
+                            policy = None
+
+                    console.print(f"✓ Amplified to {len(amplified_traces)} training examples\n")
+                else:
+                    # No amplification needed (augment_factor = 1)
+                    amplified_traces = cot_traces.copy()
+                    policy = None
+                    console.print("✓ No amplification needed (augment_factor = 1)\n")
+
+                # Save extracted task policy if available
+                if policy:
+                    policy_path = amplified_path.parent / "task_policy.json"
+                    _save_policy(policy, policy_path)
+                    console.print(f"  Policy saved to: {policy_path}")
             else:
                 # Load existing amplified data
                 console.print("📂 Loading existing amplified data...")
