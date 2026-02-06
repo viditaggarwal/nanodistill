@@ -40,6 +40,20 @@ ruff check src/ tests/
 mypy src/
 ```
 
+### Build & Quality Checks
+```bash
+# Run all quality checks before pushing
+./scripts/build
+```
+
+This runs all checks in sequence and exits with error if any fail:
+1. **Ruff** - Linting and code style
+2. **mypy** - Type checking
+3. **pytest** - Unit tests
+4. **Import validation** - Package imports successfully
+
+**Recommendation:** Run `./scripts/build` before `git push` to ensure code quality.
+
 ### Running the Pipeline
 ```bash
 # See docs/QUICK_START.md for examples

@@ -72,7 +72,7 @@ def _create_synthetic_example_wrapper(output_model: Type[BaseModel]) -> Type[Bas
         output=(output_model, Field(description="The structured output response")),
         __base__=BaseModel,
     )
-    return wrapper
+    return cast(Type[BaseModel], wrapper)
 
 
 class TeacherClient:
@@ -349,7 +349,7 @@ class TeacherClient:
             # Use instructor with List[WrapperModel] to generate multiple examples
             response = self.client.chat.completions.create(
                 model=self.model,
-                response_model=List[wrapper_model],
+                response_model=List[wrapper_model],  # type: ignore[valid-type]
                 messages=[
                     {
                         "role": "system",
