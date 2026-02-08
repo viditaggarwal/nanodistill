@@ -131,6 +131,7 @@ def distill(
             console.print(f"Student: {student}")
 
             # Load and validate training data early
+            assert training_data is not None  # already checked via bypass_pipeline
             amplified_traces = load_training_data(training_data)
             console.print(f"Training examples: {len(amplified_traces)}")
 
@@ -244,7 +245,7 @@ def distill(
         # Execute pipeline
         # Initialize amplified_traces to empty list (will be populated below)
         if not bypass_pipeline:
-            amplified_traces: List = []
+            amplified_traces = []
 
         with Progress(
             SpinnerColumn(),

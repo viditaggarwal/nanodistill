@@ -22,7 +22,7 @@ FAILED=0
 
 # 1. Run Ruff (linting and formatting check)
 echo "📋 Running Ruff lint checks..."
-if ruff check src/ tests/; then
+if uv run ruff check src/ tests/; then
     echo -e "${GREEN}✓ Ruff checks passed${NC}"
 else
     echo -e "${RED}✗ Ruff checks failed${NC}"
@@ -32,7 +32,7 @@ echo ""
 
 # 2. Run mypy (type checking)
 echo "🔍 Running mypy type checks..."
-if mypy src/; then
+if uv run mypy src/; then
     echo -e "${GREEN}✓ mypy checks passed${NC}"
 else
     echo -e "${RED}✗ mypy checks failed${NC}"
@@ -42,7 +42,7 @@ echo ""
 
 # 3. Run pytest (tests)
 echo "🧪 Running pytest..."
-if pytest tests/ -v --tb=short; then
+if uv run pytest tests/ -v --tb=short; then
     echo -e "${GREEN}✓ Tests passed${NC}"
 else
     echo -e "${RED}✗ Tests failed${NC}"
@@ -52,7 +52,7 @@ echo ""
 
 # 4. Import validation (compile check)
 echo "✅ Validating imports..."
-if python3 -c "from nanodistill import distill; print('✓ Package imports successfully')"; then
+if uv run python -c "from nanodistill import distill; print('✓ Package imports successfully')"; then
     echo -e "${GREEN}✓ Import validation passed${NC}"
 else
     echo -e "${RED}✗ Import validation failed${NC}"
