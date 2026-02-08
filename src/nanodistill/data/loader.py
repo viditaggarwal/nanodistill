@@ -11,6 +11,70 @@ from ..teacher.schemas import ThinkingTrace
 from ..utils.errors import ConfigError
 
 
+def load_training_data(
+    training_data: Union[List[Dict[str, str]], str, Path],
+) -> List[ThinkingTrace]:
+    """Load pre-formatted training data, bypassing CoT synthesis and amplification.
+
+    Accepts either a list of dicts or a path to a JSONL file. Each record must
+    have 'input', 'thinking', and 'output' fields. An optional 'confidence'
+    field defaults to 0.9.
+
+    Args:
+        training_data: Training data as a list of dicts or path to JSONL file
+
+    Returns:
+        List of ThinkingTrace objects ready for fine-tuning
+
+    Raises:
+        ConfigError: If data is empty, file not found, or records have missing fields
+    """
+    # File path: delegate to existing JSONL loader
+    if isinstance(training_data, (str, Path)):
+        path = Path(training_data)
+        if not path.exists():
+            raise ConfigError(f"Training data file not found: {path}")
+        if path.suffix != ".jsonl":
+            raise ConfigError(
+                f"Unsupported training data format: {path.suffix}. "
+                "Only .jsonl files are supported."
+            )
+        traces = load_traces_from_jsonl(str(path))
+        if not traces:
+            raise ConfigError("Training data file is empty")
+        return traces
+
+    # List of dicts
+    if isinstance(training_data, list):
+        if not training_data:
+            raise ConfigError("training_data must contain at least 1 example")
+
+        traces = []
+        required_fields = {"input", "thinking", "output"}
+        for i, record in enumerate(training_data):
+            if not isinstance(record, dict):
+                raise ConfigError(f"training_data[{i}] must be a dict, got {type(record)}")
+            missing = required_fields - set(record.keys())
+            if missing:
+                raise ConfigError(
+                    f"training_data[{i}] missing required fields: {', '.join(sorted(missing))}"
+                )
+            traces.append(
+                ThinkingTrace(
+                    input=record["input"],
+                    thinking=record["thinking"],
+                    output=record["output"],
+                    confidence=float(record.get("confidence", 0.9)),
+                )
+            )
+        return traces
+
+    raise ConfigError(
+        f"training_data must be a list of dicts, file path string, or Path object, "
+        f"got {type(training_data)}"
+    )
+
+
 def load_seed_data(
     seed: Union[List[Dict[str, str]], str, Path],
 ) -> List[Dict[str, str]]:

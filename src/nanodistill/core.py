@@ -11,7 +11,13 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from .amplifier.pipeline import AmplificationPipeline
 from .config import DistillationConfig
-from .data.loader import load_seed_data, load_traces_from_jsonl, save_traces_to_jsonl, to_hf_dataset
+from .data.loader import (
+    load_seed_data,
+    load_traces_from_jsonl,
+    load_training_data,
+    save_traces_to_jsonl,
+    to_hf_dataset,
+)
 from .distiller.trainer import MLXTrainer
 from .teacher.client import TeacherClient
 from .teacher.schemas import TaskPolicy
@@ -41,13 +47,14 @@ class DistillationResult:
 
 def distill(
     name: str,
-    seed: Union[List[Dict[str, str]], str, Path],
-    instruction: str,
+    seed: Union[List[Dict[str, str]], str, Path, None] = None,
+    instruction: str = "",
     teacher: str = "claude-sonnet-4-5",
     student: str = "mlx-community/Llama-3-8B-Instruct-4bit",
     augment_factor: int = 50,
     output_dir: str = "./outputs",
     response_model: Optional[Type[BaseModel]] = None,
+    training_data: Optional[Union[List[Dict[str, str]], str, Path]] = None,
     **kwargs,
 ) -> DistillationResult:
     """Convert seed examples into a reasoning-capable small language model.
@@ -80,6 +87,11 @@ def distill(
         response_model: Optional Pydantic model to enforce schema on synthetic outputs.
                        When provided, uses instructor for structured generation
                        and filters extra fields automatically.
+        training_data: Pre-formatted training data to bypass CoT synthesis and
+                      amplification stages. Can be:
+                      - List of dicts with 'input', 'thinking', and 'output' keys
+                      - Path to JSONL file with those fields
+                      When provided, seed, instruction, and teacher API key are not required.
         **kwargs: Additional configuration options
 
     Returns:
@@ -110,54 +122,78 @@ def distill(
         # Phase 0: Validate configuration
         console.print("\n[bold cyan]🔬 NanoDistill: Distillation Pipeline[/bold cyan]")
         console.print(f"Run: {name}")
-        console.print(f"Teacher: {teacher}")
-        console.print(f"Student: {student}")
 
-        # Validate API key upfront
-        validate_teacher_api_key(teacher)
+        # Bypass path: user-supplied training data skips CoT + amplification
+        bypass_pipeline = training_data is not None
 
-        # Load and validate seed data
-        seed_data = load_seed_data(seed)
-        validate_seed_count(len(seed_data))
-        validate_output_dir(output_dir)
+        if bypass_pipeline:
+            console.print("[bold yellow]⚡ Using pre-formatted training data[/bold yellow]")
+            console.print(f"Student: {student}")
 
-        # Create configuration
-        config = DistillationConfig(
-            name=name,
-            seed=seed_data,
-            instruction=instruction,
-            teacher=teacher,
-            student=student,
-            augment_factor=augment_factor,
-            output_dir=output_dir,
-            **kwargs,
-        )
+            # Load and validate training data early
+            amplified_traces = load_training_data(training_data)
+            console.print(f"Training examples: {len(amplified_traces)}")
 
-        console.print(f"Seed examples: {len(seed_data)}")
-        console.print(f"Target dataset size: {len(seed_data) * augment_factor}\n")
+            validate_output_dir(output_dir)
+
+            # Use placeholders for config fields that aren't needed
+            seed_data = [{"input": "n/a", "output": "n/a"}]
+            config = DistillationConfig(
+                name=name,
+                seed=seed_data,
+                instruction="Training from pre-formatted data",
+                teacher=teacher,
+                student=student,
+                augment_factor=augment_factor,
+                output_dir=output_dir,
+                **kwargs,
+            )
+        else:
+            if seed is None:
+                raise ConfigError("seed is required when training_data is not provided")
+            console.print(f"Teacher: {teacher}")
+            console.print(f"Student: {student}")
+
+            # Validate API key upfront
+            validate_teacher_api_key(teacher)
+
+            # Load and validate seed data
+            seed_data = load_seed_data(seed)
+            validate_seed_count(len(seed_data))
+            validate_output_dir(output_dir)
+
+            # Create configuration
+            config = DistillationConfig(
+                name=name,
+                seed=seed_data,
+                instruction=instruction,
+                teacher=teacher,
+                student=student,
+                augment_factor=augment_factor,
+                output_dir=output_dir,
+                **kwargs,
+            )
+
+            console.print(f"Seed examples: {len(seed_data)}")
+            console.print(f"Target dataset size: {len(seed_data) * augment_factor}\n")
 
         # Check if adapters already exist (and are not empty)
         output_base = Path(config.output_dir) / config.name
         adapter_path = output_base / "adapters"
         adapter_files = (
-            list(adapter_path.glob("*.safetensors"))
-            + list(adapter_path.glob("*.npz"))
+            list(adapter_path.glob("*.safetensors")) + list(adapter_path.glob("*.npz"))
             if adapter_path.exists()
             else []
         )
         skip_training = len(adapter_files) > 0
 
         if skip_training:
-            console.print(
-                "[bold yellow]⚠️  Fine-tuned adapters already exist![/bold yellow]"
-            )
+            console.print("[bold yellow]⚠️  Fine-tuned adapters already exist![/bold yellow]")
             console.print(f"   Location: {adapter_path}")
             console.print(
                 "[yellow]   Skipping training stage and proceeding to evaluation...[/yellow]"
             )
-            console.print(
-                "\n[bold]💡 To train a new model, change the run name:[/bold]"
-            )
+            console.print("\n[bold]💡 To train a new model, change the run name:[/bold]")
             console.print('   distill(name="math-tutor-v2", ...)')
             console.print("   OR")
             console.print('   distill(name="math-tutor-v1-retrain", ...)\n')
@@ -170,7 +206,7 @@ def distill(
         use_existing_data = False
         resume_amplification = False
 
-        if amplified_path.exists():
+        if not bypass_pipeline and amplified_path.exists():
             try:
                 all_traces = load_traces_from_jsonl(str(amplified_path))
                 existing_synthetic = len(all_traces) - len(seed_data)
@@ -179,9 +215,7 @@ def distill(
                 if existing_synthetic >= total_synthetic:
                     # Amplification complete
                     use_existing_data = True
-                    console.print(
-                        "[bold yellow]⚡ Found complete amplification data[/bold yellow]"
-                    )
+                    console.print("[bold yellow]⚡ Found complete amplification data[/bold yellow]")
                     console.print(
                         "[yellow]   Skipping API calls and going directly to "
                         "fine-tuning...\n[/yellow]"
@@ -209,7 +243,8 @@ def distill(
 
         # Execute pipeline
         # Initialize amplified_traces to empty list (will be populated below)
-        amplified_traces: List = []
+        if not bypass_pipeline:
+            amplified_traces: List = []
 
         with Progress(
             SpinnerColumn(),
@@ -220,8 +255,7 @@ def distill(
             if skip_training:
                 # Skip stages 1-3, load existing model
                 console.print(
-                    "[bold cyan]Skipping stages 1-3 (CoT, Amplification, "
-                    "Training)[/bold cyan]\n"
+                    "[bold cyan]Skipping stages 1-3 (CoT, Amplification, " "Training)[/bold cyan]\n"
                 )
                 model_path = str(output_base)
 
@@ -240,6 +274,10 @@ def distill(
                 else:
                     # If no amplified data, use empty list
                     amplified_traces = []
+
+            elif bypass_pipeline:
+                # training_data was provided -- amplified_traces already loaded above
+                pass
 
             elif not use_existing_data:
                 # Stage 1: Generate CoT traces from seed (if not cached)
@@ -344,7 +382,7 @@ def distill(
         if skip_training:
             # Use existing metrics
             base_metrics = {
-                "seed_count": len(seed_data),
+                "seed_count": len(seed_data) if not bypass_pipeline else 0,
                 "augment_factor": config.augment_factor,
                 "teacher_model": config.teacher,
                 "student_model": config.student,
@@ -354,7 +392,7 @@ def distill(
         else:
             # Use newly computed metrics
             result_metrics = {
-                "seed_count": len(seed_data),
+                "seed_count": len(seed_data) if not bypass_pipeline else 0,
                 "training_examples": len(amplified_traces),
                 "augment_factor": config.augment_factor,
                 "teacher_model": config.teacher,
