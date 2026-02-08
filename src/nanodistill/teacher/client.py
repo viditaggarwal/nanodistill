@@ -1,12 +1,16 @@
-"""Teacher model client using LiteLLM for API abstraction."""
+"""Teacher model client using LiteLLM for API abstraction.
 
+Supports both synchronous and asynchronous (concurrent) API calls for performance.
+"""
+
+import asyncio
 import json
 import logging
 import re
 from typing import TYPE_CHECKING, Dict, List, Optional, Type, cast
 
 import instructor
-from litellm import completion
+from litellm import acompletion, completion
 from pydantic import BaseModel, Field, create_model
 
 from ..utils.errors import TeacherAPIError, validate_teacher_api_key
@@ -23,6 +27,9 @@ from .schemas import TaskPolicy, ThinkingTrace
 
 if TYPE_CHECKING:
     from ..config import DistillationConfig
+
+# Default concurrency limit for async API calls
+DEFAULT_MAX_CONCURRENT = 5
 
 
 def _clean_json_string(text: str) -> str:
@@ -113,18 +120,112 @@ class TeacherClient:
         self.api_base = api_base
         self.max_retries = max_retries
 
-        # Initialize instructor for structured output
+        # Initialize instructor for structured output (sync)
         self.client = instructor.from_litellm(completion)
+
+        # Initialize async instructor client for concurrent calls
+        self.async_client = instructor.from_litellm(acompletion)
+
+        # Concurrency limit for async API calls
+        self.max_concurrent = DEFAULT_MAX_CONCURRENT
 
     def synthesize_cot(
         self,
         seed_examples: List[Dict[str, str]],
         instruction: str,
     ) -> List[ThinkingTrace]:
-        """Generate Chain-of-Thought traces for seed examples.
+        """Generate Chain-of-Thought traces for seed examples using concurrent API calls.
 
-        Uses instructor with Pydantic validation to ensure structured output
-        with proper thinking/output separation.
+        Uses async concurrency to process multiple examples simultaneously,
+        significantly reducing wall-clock time for large seed sets.
+
+        Args:
+            seed_examples: List of examples with 'input' and 'output' fields
+            instruction: Task instruction / system prompt
+
+        Returns:
+            List of generated ThinkingTrace objects (in original order)
+
+        Raises:
+            TeacherAPIError: If API call fails
+        """
+        # Use async concurrency for multiple examples
+        if len(seed_examples) > 1:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # We're inside an existing event loop; fall back to sequential
+                return self._synthesize_cot_sequential(seed_examples, instruction)
+
+            return asyncio.run(
+                self._synthesize_cot_async(seed_examples, instruction)
+            )
+
+        # Single example: just run synchronously
+        return self._synthesize_cot_sequential(seed_examples, instruction)
+
+    async def _synthesize_cot_async(
+        self,
+        seed_examples: List[Dict[str, str]],
+        instruction: str,
+    ) -> List[ThinkingTrace]:
+        """Async implementation of CoT synthesis with concurrency control.
+
+        Args:
+            seed_examples: List of examples with 'input' and 'output' fields
+            instruction: Task instruction / system prompt
+
+        Returns:
+            List of generated ThinkingTrace objects (in original order)
+        """
+        logger = logging.getLogger(__name__)
+        semaphore = asyncio.Semaphore(self.max_concurrent)
+
+        async def _generate_one(i: int, example: Dict[str, str]) -> ThinkingTrace:
+            async with semaphore:
+                try:
+                    prompt = build_cot_prompt(example, instruction)
+
+                    result = await self.async_client.chat.completions.create(
+                        model=self.model,
+                        response_model=ThinkingTrace,
+                        messages=[
+                            {"role": "system", "content": COT_SYSTEM_PROMPT},
+                            {"role": "user", "content": prompt},
+                        ],
+                        max_retries=self.max_retries,
+                        api_base=self.api_base,
+                    )
+
+                    trace = cast(ThinkingTrace, result)
+                    trace.input = example["input"]
+                    trace.output = _clean_json_string(trace.output)
+
+                    logger.debug(f"Generated CoT trace {i}/{len(seed_examples)}")
+                    return trace
+
+                except Exception as e:
+                    raise TeacherAPIError(
+                        f"Failed to generate CoT trace for example {i}: {str(e)}"
+                    ) from e
+
+        tasks = [
+            _generate_one(i, example) for i, example in enumerate(seed_examples, 1)
+        ]
+        traces = await asyncio.gather(*tasks)
+        return list(traces)
+
+    def _synthesize_cot_sequential(
+        self,
+        seed_examples: List[Dict[str, str]],
+        instruction: str,
+    ) -> List[ThinkingTrace]:
+        """Sequential fallback for CoT synthesis (original implementation).
+
+        Used when running inside an existing event loop or for single examples.
 
         Args:
             seed_examples: List of examples with 'input' and 'output' fields
@@ -132,9 +233,6 @@ class TeacherClient:
 
         Returns:
             List of generated ThinkingTrace objects
-
-        Raises:
-            TeacherAPIError: If API call fails
         """
         traces = []
         logger = logging.getLogger(__name__)
@@ -143,7 +241,6 @@ class TeacherClient:
             try:
                 prompt = build_cot_prompt(example, instruction)
 
-                # Use instructor for structured output with ThinkingTrace schema
                 trace = self.client.chat.completions.create(
                     model=self.model,
                     response_model=ThinkingTrace,
@@ -155,10 +252,7 @@ class TeacherClient:
                     api_base=self.api_base,
                 )
 
-                # Ensure input matches the seed example
                 trace.input = example["input"]
-
-                # Clean output field if it contains wrapped JSON
                 trace.output = _clean_json_string(trace.output)
 
                 traces.append(trace)
@@ -272,7 +366,9 @@ class TeacherClient:
         Returns:
             List of generated examples with 'input' and 'output' fields
         """
-        prompt = build_synthetic_generation_prompt(policy, num_examples, instruction, seed_count)
+        prompt = build_synthetic_generation_prompt(
+            policy, num_examples, instruction, seed_count
+        )
 
         # Get LiteLLM kwargs from config (temperature + user-provided params)
         litellm_kwargs = {}
@@ -335,7 +431,9 @@ class TeacherClient:
         logger = logging.getLogger(__name__)
         examples: List[Dict[str, str]] = []
 
-        prompt = build_synthetic_generation_prompt(policy, num_examples, instruction, seed_count)
+        prompt = build_synthetic_generation_prompt(
+            policy, num_examples, instruction, seed_count, response_model=response_model
+        )
 
         # Get LiteLLM kwargs from config (temperature + user-provided params)
         litellm_kwargs = {}

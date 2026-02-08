@@ -1,6 +1,11 @@
-"""Prompt templates for teacher model interactions."""
+"""Prompt templates for teacher model interactions.
 
-from typing import Dict, List
+Includes optimized prompts for structured output generation with Pydantic models.
+"""
+
+from typing import Dict, List, Optional, Type
+
+from pydantic import BaseModel
 
 from .schemas import TaskPolicy, ThinkingTrace
 
@@ -117,23 +122,87 @@ Your job is to create new examples that:
 The generated examples will be used to fine-tune a language model, so quality is critical."""
 
 
+def _get_schema_description(response_model: Optional[Type[BaseModel]]) -> str:
+    """Generate a human-readable schema description from a Pydantic model.
+
+    Args:
+        response_model: Optional Pydantic model to describe
+
+    Returns:
+        Schema description string, or empty string if no model
+    """
+    if response_model is None:
+        return ""
+
+    try:
+        schema = response_model.model_json_schema()
+        properties = schema.get("properties", {})
+        required = set(schema.get("required", []))
+
+        lines = [f"\nOutput JSON Schema ({response_model.__name__}):"]
+        for field_name, field_info in properties.items():
+            field_type = field_info.get("type", "any")
+            description = field_info.get("description", "")
+            req = " (required)" if field_name in required else " (optional)"
+
+            # Handle enum types
+            if "enum" in field_info:
+                field_type = f"enum: {field_info['enum']}"
+            elif "allOf" in field_info:
+                # Pydantic wraps enum references
+                for ref in field_info["allOf"]:
+                    if "$ref" in ref:
+                        ref_name = ref["$ref"].split("/")[-1]
+                        defs = schema.get("$defs", {})
+                        if ref_name in defs and "enum" in defs[ref_name]:
+                            field_type = f"enum: {defs[ref_name]['enum']}"
+
+            line = f"  - {field_name}: {field_type}{req}"
+            if description:
+                line += f" — {description}"
+            lines.append(line)
+
+        return "\n".join(lines)
+    except Exception:
+        return ""
+
+
 def build_synthetic_generation_prompt(
     policy: TaskPolicy,
     num_examples: int,
     instruction: str,
     seed_count: int,
+    response_model: Optional[Type[BaseModel]] = None,
 ) -> str:
     """Build a prompt to generate synthetic examples matching the task policy.
+
+    When a response_model is provided, includes the JSON schema in the prompt
+    to guide the teacher toward generating schema-compliant outputs.
 
     Args:
         policy: Extracted task policy
         num_examples: Number of examples to generate
         instruction: Original task instruction
         seed_count: Number of original seed examples
+        response_model: Optional Pydantic model for schema-aware generation
 
     Returns:
         Formatted prompt for synthetic generation
     """
+    schema_section = _get_schema_description(response_model)
+
+    # Build diversity guidance for structured outputs
+    diversity_guidance = ""
+    if response_model is not None:
+        diversity_guidance = """
+DIVERSITY REQUIREMENTS (critical for training quality):
+- Vary the input scenarios significantly across examples
+- Include edge cases: ambiguous signals, conflicting data, sarcasm, euphemisms
+- Cover different difficulty levels within each batch
+- Ensure balanced representation across enum/categorical output values
+- Each example should test a different reasoning challenge
+"""
+
     prompt = f"""You are generating synthetic examples to expand a training dataset.
 
 Original Task: {instruction}
@@ -148,6 +217,7 @@ Task Policy (extracted from {seed_count} seed examples):
 - Patterns: {', '.join(policy.reasoning_patterns) if policy.reasoning_patterns else 'None'}
 - Input Length: {policy.input_length_range}
 - Output Length: {policy.output_length_range}
+{schema_section}
 
 Task Summary: {policy.examples_summary}
 
@@ -157,7 +227,7 @@ Please generate {num_examples} NEW examples (not variations of the seeds) that:
 3. Vary in specific details while maintaining the core pattern
 4. Are realistic and of high quality
 5. Maintain consistent difficulty level
-
+{diversity_guidance}
 CRITICAL FORMATTING INSTRUCTIONS:
 - For the output field: Generate ONLY raw JSON matching the schema
   (no markdown, no code blocks, no tags)

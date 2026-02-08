@@ -357,6 +357,8 @@ Future versions (Phase 3+) may add:
 - 🔮 Custom prompt overrides
 - 🔮 Additional optimizer options (requires MLX-LM update)
 
+---
+
 ## Troubleshooting
 
 ### Issue: "Memory limit exceeded" or OOM errors
@@ -401,6 +403,26 @@ distill(..., cpu_capacity_percent=0.9)  # 90% instead of 80%
 ```
 
 **Note**: Only do this on dedicated training machines.
+
+### Issue: Training heats up my laptop (thermal throttling)
+
+**Solution 1**: Use thermal-optimized config (recommended)
+```python
+distill(
+    ...,
+    student="mlx-community/Qwen2.5-3B-Instruct-4bit",  # Smaller model
+    lora_rank=4,             # Reduced from 8
+    lora_layers=2,           # Reduced from 4
+    augment_factor=30,       # Fewer examples
+)
+```
+
+**Solution 2**: External cooling
+- Laptop cooling pad (~$20-40)
+- Elevated laptop stand for airflow
+- Train in a cooler room
+
+**Note**: Thermal throttling is automatic on Apple Silicon when CPU exceeds ~85-95°C. Hardware-optimized defaults are now auto-detected for your chip.
 
 ### Issue: Generated examples are too different/similar
 

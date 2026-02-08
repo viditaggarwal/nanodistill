@@ -1,13 +1,170 @@
-"""Configuration and validation for NanoDistill distillation runs."""
+"""Configuration and validation for NanoDistill distillation runs.
 
+Includes Apple Silicon auto-detection for optimal default configurations.
+"""
+
+import platform
+import subprocess
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
 
+def detect_apple_silicon() -> Optional[str]:
+    """Detect Apple Silicon chip type from system info.
+
+    Returns:
+        Chip identifier string (e.g., 'M1', 'M1 Pro', 'M2 Max', 'M4 Pro')
+        or None if not Apple Silicon.
+    """
+    if platform.system() != "Darwin" or platform.machine() != "arm64":
+        return None
+
+    try:
+        result = subprocess.run(
+            ["sysctl", "-n", "machdep.cpu.brand_string"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        brand = result.stdout.strip()
+        # Extract chip name: "Apple M4 Pro" -> "M4 Pro"
+        if "Apple" in brand:
+            return brand.replace("Apple ", "").strip()
+    except Exception:
+        pass
+
+    return "Apple Silicon"
+
+
+def get_hardware_preset(chip: Optional[str] = None) -> Dict[str, Any]:
+    """Get recommended training configuration for detected hardware.
+
+    Returns optimized defaults based on Apple Silicon chip variant.
+    These are tuned for single-task distillation (e.g., stock sentiment).
+
+    Args:
+        chip: Optional chip identifier. If None, auto-detects.
+
+    Returns:
+        Dict of recommended config overrides for the hardware.
+    """
+    if chip is None:
+        chip = detect_apple_silicon()
+
+    if chip is None:
+        # Not Apple Silicon — return empty (use defaults)
+        return {}
+
+    chip_lower = (chip or "").lower()
+
+    # M4 Pro / M4 Max — 24-128GB, 12-16 core CPU, powerful GPU
+    if "m4 pro" in chip_lower or "m4 max" in chip_lower:
+        return {
+            "batch_size": 4,
+            "max_seq_length": 512,
+            "learning_rate": 2e-4,
+            "lora_rank": 16,
+            "lora_layers": 8,
+            "max_memory_gb": 18,
+            "memory_hard_limit_gb": 22,
+            "cpu_capacity_percent": 0.9,
+        }
+
+    # M4 (base) — 16-32GB
+    if "m4" in chip_lower:
+        return {
+            "batch_size": 2,
+            "max_seq_length": 512,
+            "learning_rate": 2e-4,
+            "lora_rank": 16,
+            "lora_layers": 6,
+            "max_memory_gb": 12,
+            "memory_hard_limit_gb": 14,
+            "cpu_capacity_percent": 0.85,
+        }
+
+    # M3 Pro / M3 Max — 18-128GB
+    if "m3 pro" in chip_lower or "m3 max" in chip_lower:
+        return {
+            "batch_size": 4,
+            "max_seq_length": 512,
+            "learning_rate": 2e-4,
+            "lora_rank": 16,
+            "lora_layers": 8,
+            "max_memory_gb": 16,
+            "memory_hard_limit_gb": 20,
+            "cpu_capacity_percent": 0.85,
+        }
+
+    # M3 (base) — 8-24GB
+    if "m3" in chip_lower:
+        return {
+            "batch_size": 2,
+            "max_seq_length": 512,
+            "learning_rate": 1e-4,
+            "lora_rank": 8,
+            "lora_layers": 4,
+            "max_memory_gb": 10,
+            "memory_hard_limit_gb": 12,
+            "cpu_capacity_percent": 0.8,
+        }
+
+    # M2 Pro / M2 Max
+    if "m2 pro" in chip_lower or "m2 max" in chip_lower:
+        return {
+            "batch_size": 2,
+            "max_seq_length": 512,
+            "learning_rate": 1e-4,
+            "lora_rank": 8,
+            "lora_layers": 6,
+            "max_memory_gb": 14,
+            "memory_hard_limit_gb": 18,
+            "cpu_capacity_percent": 0.85,
+        }
+
+    # M2 (base) / M1 Pro / M1 Max
+    if "m2" in chip_lower or "m1 pro" in chip_lower or "m1 max" in chip_lower:
+        return {
+            "batch_size": 2,
+            "max_seq_length": 256,
+            "learning_rate": 1e-4,
+            "lora_rank": 8,
+            "lora_layers": 4,
+            "max_memory_gb": 10,
+            "memory_hard_limit_gb": 12,
+            "cpu_capacity_percent": 0.8,
+        }
+
+    # M1 (base) — 8-16GB, most conservative
+    if "m1" in chip_lower:
+        return {
+            "batch_size": 1,
+            "max_seq_length": 256,
+            "learning_rate": 1e-5,
+            "lora_rank": 4,
+            "lora_layers": 2,
+            "max_memory_gb": 6,
+            "memory_hard_limit_gb": 7,
+            "cpu_capacity_percent": 0.8,
+        }
+
+    # Generic Apple Silicon fallback
+    return {
+        "batch_size": 2,
+        "max_seq_length": 256,
+        "learning_rate": 1e-4,
+        "lora_rank": 8,
+        "lora_layers": 4,
+    }
+
+
 class DistillationConfig(BaseModel):
     """Configuration for a NanoDistill distillation run.
+
+    Automatically detects Apple Silicon hardware and applies optimized defaults
+    when hardware-specific parameters are not explicitly provided.
 
     Attributes:
         name: Identifier for this distillation run (used in output folder names)
@@ -161,7 +318,19 @@ class DistillationConfig(BaseModel):
 
     mlx_lm_kwargs: Dict[str, Any] = Field(
         default_factory=dict,
-        description="Additional MLX-LM parameters (lora_dropout, warmup_steps, seed, etc.)",
+        description="Additional MLX-LM parameters (grad-accumulation-steps, optimizer, seed, etc.)",
+    )
+
+    save_checkpoints: bool = Field(
+        default=True,
+        description="Save model checkpoints incrementally during training for recovery. Default: True",
+    )
+
+    checkpoint_interval: int = Field(
+        default=0,
+        description="Save checkpoint every N iterations (0=auto: every epoch). Default: 0",
+        ge=0,
+        le=1000,
     )
 
     suppress_warnings: bool = Field(
@@ -173,6 +342,9 @@ class DistillationConfig(BaseModel):
     def get_system_defaults() -> tuple[int, int]:
         """Auto-detect system capabilities and return safe defaults.
 
+        Uses hardware-aware limits instead of fixed 12GB cap. On M4 Pro (24GB+),
+        the old 12GB cap left significant performance on the table.
+
         Returns:
             (max_memory_gb, memory_hard_limit_gb) tuple
         """
@@ -181,10 +353,16 @@ class DistillationConfig(BaseModel):
 
             total_memory_gb = psutil.virtual_memory().total / (1024**3)
 
-            # Conservative defaults: use up to 90% of RAM, hard stop at 95%
-            # But cap both at 12GB for safety on most systems
-            max_memory = int(min(total_memory_gb * 0.9, 12))
-            hard_limit = int(min(total_memory_gb * 0.95, 12))
+            # Hardware-aware: use chip detection for better defaults
+            chip = detect_apple_silicon()
+            preset = get_hardware_preset(chip)
+
+            if preset and "max_memory_gb" in preset:
+                return preset["max_memory_gb"], preset["memory_hard_limit_gb"]
+
+            # Fallback: scale with available RAM (no fixed 12GB cap)
+            max_memory = int(total_memory_gb * 0.75)
+            hard_limit = int(total_memory_gb * 0.9)
 
             return max_memory, hard_limit
         except Exception:
@@ -209,7 +387,7 @@ class DistillationConfig(BaseModel):
         """Get CLI arguments for MLX-LM training.
 
         Converts mlx_lm_kwargs dict to command-line arguments.
-        Example: {"warmup_steps": 100} -> ["--warmup-steps", "100"]
+        Example: {"grad_accumulation_steps": 4} -> ["--grad-accumulation-steps", "4"]
 
         Returns:
             List of CLI argument strings
@@ -283,7 +461,37 @@ class DistillationConfig(BaseModel):
         return v
 
     def model_post_init(self, __context) -> None:
-        """Post-initialization: Create output directory and log config."""
+        """Post-initialization: Apply hardware presets and create output directory.
+
+        Detects Apple Silicon chip and applies optimized defaults for any
+        training parameters that were left at their default values. This means
+        explicit user values are never overridden, but unset parameters get
+        hardware-optimized defaults.
+        """
+        # Apply hardware-aware defaults for parameters left at class defaults
+        chip = detect_apple_silicon()
+        if chip:
+            preset = get_hardware_preset(chip)
+            # These are the class-level defaults — only override if user didn't set explicitly
+            class_defaults = {
+                "batch_size": 1,
+                "max_seq_length": 256,
+                "learning_rate": 1e-5,
+                "lora_rank": 8,
+                "lora_layers": 4,
+                "max_memory_gb": 12,
+                "memory_hard_limit_gb": 12,
+                "cpu_capacity_percent": 0.8,
+            }
+
+            for key, preset_value in preset.items():
+                current_value = getattr(self, key, None)
+                default_value = class_defaults.get(key)
+                # Only apply preset if the current value matches the class default
+                if current_value is not None and default_value is not None:
+                    if current_value == default_value:
+                        object.__setattr__(self, key, preset_value)
+
         # Ensure output_dir exists
         output_path = Path(self.output_dir)
         output_path.mkdir(parents=True, exist_ok=True)

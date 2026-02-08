@@ -191,6 +191,18 @@ result = distill(
 )
 ```
 
+**Thermal-optimized (for laptops that heat up):**
+```python
+result = distill(
+    name="cool-model",
+    seed=[...],
+    instruction="...",
+    student="mlx-community/Qwen2.5-3B-Instruct-4bit",  # Smaller model
+    lora_rank=4,        # Reduced from 8
+    lora_layers=2,      # Reduced from 4
+    augment_factor=30,  # Reduced from 50
+)
+```
 For more examples and detailed guidance, see [**Configuration Reference**](docs/CONFIGURATION.md) and [**Configuration Examples**](examples/configuration.py).
 
 ---
@@ -216,6 +228,8 @@ export HF_TOKEN='hf_...'  # Get from https://huggingface.co/settings/tokens
 ```
 
 **Out of memory** - Lower `augment_factor` (e.g. 20–30), use a smaller student, or close other GPU-heavy apps.
+
+**Laptop heating up during training** - Use a smaller model (Qwen 4B) and reduced LoRA rank (4 instead of 8). Hardware-optimized defaults are now auto-detected for your Apple Silicon chip.
 
 **MLX** - Requires macOS 13+. See [MLX](https://github.com/ml-explore/mlx).
 

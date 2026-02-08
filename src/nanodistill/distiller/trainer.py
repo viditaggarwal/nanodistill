@@ -127,7 +127,11 @@ class MLXTrainer:
         print("  (Initialization will happen during training with MLX-LM tuner)\n")
 
     def _prepare_dataset(self, dataset: Dataset) -> List[Dict]:
-        """Prepare dataset for training.
+        """Prepare dataset for training using model's chat template when available.
+
+        Uses the tokenizer's chat template (e.g., Qwen's <|im_start|>/<|im_end|>
+        format) for proper formatting. Falls back to plain text if chat template
+        is not available.
 
         Args:
             dataset: HuggingFace Dataset
@@ -140,12 +144,46 @@ class MLXTrainer:
         if self.tokenizer is None:
             raise TrainingError("Tokenizer not loaded; call _load_model first.")
 
+        # Check if tokenizer supports chat template
+        has_chat_template = (
+            hasattr(self.tokenizer, "apply_chat_template")
+            and hasattr(self.tokenizer, "chat_template")
+            and self.tokenizer.chat_template is not None
+        )
+
         for example in dataset:
-            text = f"""Input: {example['input']}
-
-Thinking: {example['thinking']}
-
-Output: {example['output']}"""
+            if has_chat_template:
+                # Use model's native chat template for better alignment
+                messages = [
+                    {"role": "user", "content": example["input"]},
+                    {
+                        "role": "assistant",
+                        "content": (
+                            f"<thinking>\n{example['thinking']}\n</thinking>\n\n"
+                            f"{example['output']}"
+                        ),
+                    },
+                ]
+                try:
+                    text = self.tokenizer.apply_chat_template(
+                        messages,
+                        tokenize=False,
+                        add_generation_prompt=False,
+                    )
+                except Exception:
+                    # Fallback to plain format if chat template fails
+                    text = (
+                        f"Input: {example['input']}\n\n"
+                        f"Thinking: {example['thinking']}\n\n"
+                        f"Output: {example['output']}"
+                    )
+            else:
+                # Fallback: plain text format (backward compatible)
+                text = (
+                    f"Input: {example['input']}\n\n"
+                    f"Thinking: {example['thinking']}\n\n"
+                    f"Output: {example['output']}"
+                )
 
             tokens = self.tokenizer.encode(text)
 
@@ -254,6 +292,18 @@ Output: {example['output']}"""
         iters = num_epochs * (len(train_data) // batch_size)
         steps_per_report = max(1, iters // 20)  # Report ~20 times during training
 
+        # Calculate checkpoint interval
+        if self.config.save_checkpoints:
+            if self.config.checkpoint_interval > 0:
+                save_every = self.config.checkpoint_interval
+            else:
+                # Default: save every epoch
+                iters_per_epoch = len(train_data) // batch_size
+                save_every = max(1, iters_per_epoch)
+        else:
+            # Don't save checkpoints, only save final model
+            save_every = iters
+
         print(f"\n{'='*60}")
         print("Training Configuration")
         print(f"{'='*60}")
@@ -267,7 +317,10 @@ Output: {example['output']}"""
         print(f"  Total iterations: {iters}")
         print(f"  Data directory: {data_dir}")
         print(f"  Adapter path: {adapter_path}")
-        print(f"  Steps per report: {steps_per_report}\n")
+        print(f"  Steps per report: {steps_per_report}")
+        if self.config.save_checkpoints:
+            print(f"  Checkpoint save interval: {save_every} iterations")
+        print()
 
         print(f"{'='*60}")
         print("Starting Fine-Tuning with Gradient-Based LoRA Training")
@@ -320,10 +373,16 @@ Output: {example['output']}"""
                 "--steps-per-report",
                 str(steps_per_report),
                 "--save-every",
-                str(iters),  # Save at end
+                str(save_every),
                 "--max-seq-length",
                 str(max_seq_length),
             ]
+
+            # Append user-provided mlx_lm_kwargs (grad_accumulation_steps, optimizer, etc.)
+            extra_args = self.config.get_mlx_lm_cli_args()
+            if extra_args:
+                cmd.extend(extra_args)
+                print(f"  Extra MLX-LM args: {' '.join(extra_args)}")
 
             # Monitor system while training
             print("Starting training (monitoring system capacity)...\n")
